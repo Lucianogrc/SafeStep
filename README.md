@@ -1,50 +1,46 @@
-# Welcome to your Expo app 👋
+# SafeStep
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**SafeStep** es una aplicación móvil desarrollada en **React Native (Expo)** que ayuda a excursionistas a mantenerse seguros en entornos naturales.  
+La app permite visualizar mapas incluso sin conexión, enviar alertas SOS y vincular dispositivos inteligentes como el **SafeBrazalet**, que ofrece localización GPS.
 
-## Get started
+---
 
-1. Install dependencies
+## 🚀 Características principales
+
+- 🗺️ **Mapa interactivo**: Visualiza rutas y ubicaciones, incluso en zonas sin señal.  
+- 🚨 **Modo SOS**: Envía alertas de emergencia con tu ubicación en tiempo real.  
+- 🧍‍♂️ **Perfiles de usuario**: Registro y personalización tanto para excursionistas como para empresas.  
+- 💼 **Panel empresarial**: Permite a parques o centros turísticos gestionar visitantes y zonas de riesgo.  
+- 📡 **SafeBrazalet**: Vincula un brazalete inteligente vía Bluetooth, con GPS, batería de larga duración y baliza luminosa/sonora.  
+- 🔔 **Notificaciones**: Recibe alertas en tiempo real sobre seguridad y eventos del parque.  
+
+---
+
+## 🛠️ Tecnologías utilizadas
+
+- **React Native** con **Expo**  
+- **TypeScript**  
+- **Firebase** (autenticación y base de datos)  
+- **React Native Reanimated** (animaciones)  
+- **Lucide Icons** (iconografía)  
+- **Framer Motion** adaptado a componentes móviles  
+
+---
+
+## 📲 Instalación y ejecución
+
+1. Clona este repositorio:  
 
    ```bash
-   npm install
-   ```
+   git clone https://github.com/Lucianogrc/SafeStep.git
+   cd SafeStep
 
-2. Start the app
+2. Instala las dependencias:
 
-   ```bash
-   npx expo start
-   ```
+npm install
 
-In the output, you'll find options to open the app in a
+3. Inicia el proyecto con Expo:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+npx expo start
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+4. Escanea el código QR en tu app de **Expo Go** (iOS o Android) para abrir **SafeStep** en tu dispositivo móvil.
