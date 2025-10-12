@@ -1,98 +1,173 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+// app/index.tsx
+import React, { useState } from "react";
+import BrazaletPairing from "../../src/screens/BrazaletPairing";
+import CompanyDashboard from "../../src/screens/CompanyDashboard";
+import CompanyProfile from "../../src/screens/CompanyProfile";
+import CompanyRegister from "../../src/screens/CompanyRegister";
+import EmergencyScreen from "../../src/screens/EmergencyScreen";
+import HikerHome from "../../src/screens/HikerHome";
+import HikerProfile from "../../src/screens/HikerProfile";
+import Login from "../../src/screens/Login";
+import LogoutConfirmDialog from "../../src/screens/LogoutConfirmDialog";
+import MapView from "../../src/screens/MapView";
+import Notifications from "../../src/screens/Notifications";
+import Register from "../../src/screens/Register";
+import RegisterTypeSelector from "../../src/screens/RegisterTypeSelector";
+import Welcome from "../../src/screens/Welcome";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function App() {
+  const [screen, setScreen] = useState<
+    | "welcome"
+    | "login"
+    | "registerType"
+    | "register"
+    | "companyRegister"
+    | "dashboard"
+    | "companyProfile"
+    | "hikerHome"
+    | "hikerProfile"
+    | "map"
+    | "emergency"
+    | "notifications"
+    | "brazalet"
+  >("welcome");
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  // 🌿 Pantalla de bienvenida
+  if (screen === "welcome") {
+    return <Welcome onGetStarted={() => setScreen("login")} />;
+  }
+
+  // 🔐 Pantalla de inicio de sesión
+  if (screen === "login") {
+    return (
+      <Login
+        onBack={() => setScreen("welcome")}
+        onLogin={() => setScreen("hikerHome")}
+        onRegister={() => setScreen("registerType")}
+      />
+    );
+  }
+
+  // 🧭 Selector de tipo de registro
+  if (screen === "registerType") {
+    return (
+      <RegisterTypeSelector
+        onBack={() => setScreen("login")}
+        onSelectType={(type) => {
+          if (type === "hiker") setScreen("register");
+          else if (type === "company") setScreen("companyRegister");
+        }}
+      />
+    );
+  }
+
+  // 🚶‍♂️ Registro de usuario Hiker
+  if (screen === "register") {
+    return (
+      <Register
+        onBack={() => setScreen("registerType")}
+        onComplete={() => setScreen("hikerHome")}
+      />
+    );
+  }
+
+  // 🏢 Registro de empresa
+  if (screen === "companyRegister") {
+    return (
+      <CompanyRegister
+        onBack={() => setScreen("registerType")}
+        onComplete={() => setScreen("dashboard")}
+      />
+    );
+  }
+
+  // 🏞️ Home del Hiker
+  if (screen === "hikerHome") {
+    return (
+      <HikerHome
+        onNavigate={(destination) => {
+          if (destination === "hiker-profile") setScreen("hikerProfile");
+          else if (destination === "map") setScreen("map");
+          else if (destination === "emergency") setScreen("emergency");
+          else if (destination === "notifications") setScreen("notifications");
+          else if (destination === "brazalet") setScreen("brazalet");
+        }}
+        onLogout={() => setShowLogoutDialog(true)}
+      />
+    );
+  }
+
+  // 🧍 Perfil del Hiker
+  if (screen === "hikerProfile") {
+    return (
+      <>
+        <HikerProfile
+          onBack={() => setScreen("hikerHome")}
+          onLogout={() => setShowLogoutDialog(true)}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+        <LogoutConfirmDialog
+          isOpen={showLogoutDialog}
+          onConfirm={() => {
+            setShowLogoutDialog(false);
+            setScreen("welcome");
+          }}
+          onCancel={() => setShowLogoutDialog(false)}
+        />
+      </>
+    );
+  }
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  // 🗺️ Vista de mapa del parque
+  if (screen === "map") {
+    return <MapView onBack={() => setScreen("hikerHome")} />;
+  }
+
+  // 🚨 Emergencia SOS
+  if (screen === "emergency") {
+    return <EmergencyScreen onBack={() => setScreen("hikerHome")} />;
+  }
+
+  // 🔔 Notificaciones
+  if (screen === "notifications") {
+    return <Notifications onBack={() => setScreen("hikerHome")} />;
+  }
+
+  // 📶 Emparejamiento de brazalete
+  if (screen === "brazalet") {
+    return <BrazaletPairing onBack={() => setScreen("hikerHome")} />;
+  }
+
+  // 🏢 Perfil de empresa
+ if (screen === "companyProfile") {
+  return (
+    <CompanyProfile
+      onBack={() => setScreen("dashboard")}
+      onLogout={() => setScreen("welcome")}
+    />
   );
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+
+
+  // 💼 Panel principal de empresa
+  return (
+    <>
+      <CompanyDashboard
+        onNavigate={(s) => {
+          if (s === "company-profile") setScreen("companyProfile");
+        }}
+        onLogout={() => setShowLogoutDialog(true)}
+      />
+      <LogoutConfirmDialog
+        isOpen={showLogoutDialog}
+        onConfirm={() => {
+          setShowLogoutDialog(false);
+          setScreen("welcome");
+        }}
+        onCancel={() => setShowLogoutDialog(false)}
+      />
+    </>
+  );
+}
