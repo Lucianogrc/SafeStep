@@ -36,11 +36,11 @@ La app permite visualizar mapas incluso sin conexión, enviar alertas SOS y vinc
    cd SafeStep
 
 2. Instala las dependencias:
-
-      **npm install**
-
+```bash
+      npm install
+```
 3. Inicia el proyecto con Expo:
-
-      **npx expo start**
-
+```bash
+    npx expo start
+```
 4. Escanea el código QR en tu app de **Expo Go** (iOS o Android) para abrir **SafeStep** en tu dispositivo móvil.
