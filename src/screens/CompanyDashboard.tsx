@@ -1,350 +1,418 @@
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import Animated, { FadeInUp } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
+import TabBar from "../../components/ui/TabBar";
 
 interface CompanyDashboardProps {
   onNavigate: (screen: string) => void;
+  onTabChange?: (tab: string) => void;
   onLogout: () => void;
 }
 
-const activeVisitors = [
-  {
-    id: 1,
-    name: "Juan Pérez",
-    blood: "O+",
-    status: "active",
-    time: "2h 15m",
-    location: "Ruta Principal",
-  },
-  {
-    id: 2,
-    name: "María García",
-    blood: "A+",
-    status: "active",
-    time: "1h 30m",
-    location: "Mirador Norte",
-  },
-  {
-    id: 3,
-    name: "Carlos López",
-    blood: "B+",
-    status: "active",
-    time: "45m",
-    location: "Cascada Sur",
-  },
-  {
-    id: 4,
-    name: "Ana Martínez",
-    blood: "AB+",
-    status: "alert",
-    time: "3h 05m",
-    location: "Zona Boscosa",
-  },
-];
-
 export default function CompanyDashboard({
   onNavigate,
+  onTabChange,
   onLogout,
 }: CompanyDashboardProps) {
-  const [scanning, setScanning] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
-  const handleScan = () => {
-    setScanning(true);
+  const scanLine = useSharedValue(0);
+
+  const animatedLine = useAnimatedStyle(() => ({
+    transform: [{ translateY: scanLine.value }],
+  }));
+
+  const startScanner = () => {
+    setShowScanner(true);
+    scanLine.value = withRepeat(withTiming(260, { duration: 2000 }), -1, true);
     setTimeout(() => {
-      setScanning(false);
-      Alert.alert("Escaneo completado");
-    }, 2000);
+      setShowScanner(false);
+      alert("✅ Visitante registrado correctamente");
+    }, 2500);
   };
 
+  const activeVisitors = [
+    { id: 1, name: "Juan Pérez", blood: "O+", status: "Activo", time: "2h 15m", checkIn: "10:30 AM" },
+    { id: 2, name: "María García", blood: "A+", status: "Activo", time: "1h 30m", checkIn: "11:15 AM" },
+    { id: 3, name: "Carlos López", blood: "Fuera", time: "3h 45m", checkIn: "09:00 AM" },
+  ];
+
+  const alerts = [
+    { id: 1, type: "warning", message: "Batería baja - Carlos López", time: "Hace 15 min" },
+    { id: 2, type: "info", message: "Nuevo visitante registrado", time: "Hace 30 min" },
+  ];
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.logoContainer}>
+      <LinearGradient
+        colors={["#1E90FF", "#1E90FF"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.header}
+      >
+        <View style={styles.headerTop}>
+          <View style={styles.logoBox}>
             <Image
-             source={require("../../assets/images/logo.png")}
-                style={styles.logo}
+              source={require("../../assets/images/logo2.png")}
+              style={styles.logo}
             />
-
-            
           </View>
-          <View>
-            <Text style={styles.headerTitle}>Panel Administrativo</Text>
-            <Text style={styles.headerSubtitle}>Parque Nacional Verde</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.companyName}>Parque Nacional</Text>
+            <Text style={styles.companySub}>Dashboard empresarial</Text>
+          </View>
+          <View style={styles.headerIcons}>
+            <TouchableOpacity
+              onPress={() => onNavigate("notifications")}
+              style={styles.iconBtn}
+            >
+              <Ionicons name="notifications-outline" size={22} color="#fff" />
+              {alerts.length > 0 && <View style={styles.dot} />}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onNavigate("company-profile")}
+              style={styles.iconBtn}
+            >
+              <Ionicons name="person-outline" size={22} color="#fff" />
+            </TouchableOpacity>
           </View>
         </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => onNavigate("company-profile")}>
-            <Feather name="user" size={22} color="#fff" style={styles.icon} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onLogout}>
-            <Feather name="log-out" size={22} color="#fff" style={styles.icon} />
-          </TouchableOpacity>
-        </View>
-      </View>
 
-      {/* Stats */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Visitantes activos</Text>
-          <Text style={styles.statValue}>24</Text>
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Hoy</Text>
+            <Text style={styles.statValue}>24</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Activos</Text>
+            <Text style={[styles.statValue, { color: "#2E8B57" }]}>
+              {activeVisitors.filter((v) => v.status === "Activo").length}
+            </Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Semana</Text>
+            <Text style={styles.statValue}>156</Text>
+          </View>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Alertas hoy</Text>
-          <Text style={styles.statValue}>1</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>En emergencia</Text>
-          <Text style={styles.statValue}>0</Text>
-        </View>
-      </View>
+      </LinearGradient>
 
       {/* Content */}
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Escáner */}
-        <Animated.View
-  entering={FadeInUp.duration(400)}
-  style={styles.scanCard}
->
-
-          <MaterialCommunityIcons
-            name="qrcode-scan"
-            size={60}
-            color="#fff"
-            style={{ marginBottom: 10 }}
-          />
-          <Text style={styles.scanTitle}>Escanear código de visitante</Text>
-          <Text style={styles.scanSubtitle}>
-            Registra el ingreso de excursionistas
-          </Text>
-
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
+        <View style={styles.content}>
+          {/* Scanner */}
           <TouchableOpacity
-            onPress={handleScan}
-            disabled={scanning}
             style={styles.scanButton}
+            onPress={startScanner}
+            activeOpacity={0.9}
           >
-            <Text style={styles.scanButtonText}>
-              {scanning ? "Escaneando..." : "Abrir escáner"}
-            </Text>
+            <Ionicons name="qr-code-outline" size={24} color="#fff" />
+            <Text style={styles.scanText}>Abrir escáner QR</Text>
           </TouchableOpacity>
-        </Animated.View>
 
-        {/* Acciones rápidas */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Acciones rápidas</Text>
-
+          {/* 🔹 Acceso directo al mapa */}
           <TouchableOpacity
-            style={styles.quickButton}
-            onPress={() => onNavigate("map")}
+            style={styles.mapButton}
+            onPress={() => onTabChange?.("map")}
+            activeOpacity={0.9}
           >
-            <View style={styles.quickLeft}>
-              <View style={[styles.iconCircle, { backgroundColor: "#1E90FF20" }]}>
-                <Feather name="map-pin" size={22} color="#1E90FF" />
-              </View>
-              <View>
-                <Text style={styles.quickTitle}>Ver mapa en vivo</Text>
-                <Text style={styles.quickSubtitle}>Ubicación de visitantes</Text>
-              </View>
-            </View>
-            <Feather name="chevron-right" size={20} color="#888" />
+            <Ionicons name="map-outline" size={24} color="#1E90FF" />
+            <Text style={styles.mapButtonText}>Ver mapa en vivo</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.quickButton}
-            onPress={() => onNavigate("brazalet")}
-          >
-            <View style={styles.quickLeft}>
-              <View style={[styles.iconCircle, { backgroundColor: "#FF7F1120" }]}>
-                <Feather name="bluetooth" size={22} color="#FF7F11" />
-              </View>
-              <View>
-                <Text style={styles.quickTitle}>Vincular SafeBrazalet</Text>
-                <Text style={styles.quickSubtitle}>Conectar pulsera</Text>
-              </View>
+          {/* Alerts */}
+          {alerts.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Alertas y emergencias</Text>
+              {alerts.map((alert) => (
+                <View
+                  key={alert.id}
+                  style={[
+                    styles.alertCard,
+                    alert.type === "warning" && styles.alertWarning,
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      alert.type === "warning"
+                        ? "alert-circle-outline"
+                        : "checkmark-circle-outline"
+                    }
+                    size={22}
+                    color={alert.type === "warning" ? "#FF7F11" : "#1E90FF"}
+                    style={{ marginRight: 10 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.alertMessage}>{alert.message}</Text>
+                    <Text style={styles.alertTime}>{alert.time}</Text>
+                  </View>
+                </View>
+              ))}
             </View>
-            <Feather name="chevron-right" size={20} color="#888" />
-          </TouchableOpacity>
+          )}
 
-          <TouchableOpacity
-            style={styles.quickButton}
-            onPress={() => onNavigate("notifications")}
-          >
-            <View style={styles.quickLeft}>
-              <View style={[styles.iconCircle, { backgroundColor: "#2E8B5720" }]}>
-                <Feather name="bell" size={22} color="#2E8B57" />
-                <View style={styles.notificationDot} />
-              </View>
-              <View>
-                <Text style={styles.quickTitle}>Notificaciones</Text>
-                <Text style={styles.quickSubtitle}>3 nuevas alertas</Text>
-              </View>
+          {/* Visitors */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Visitantes activos</Text>
+              <TouchableOpacity>
+                <Text style={styles.sectionLink}>Ver todos</Text>
+              </TouchableOpacity>
             </View>
-            <Feather name="chevron-right" size={20} color="#888" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Visitantes activos */}
-        <View style={styles.section}>
-          <View style={styles.visitorsHeader}>
-            <Text style={styles.sectionTitle}>Visitantes activos</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{activeVisitors.length}</Text>
-            </View>
+            {activeVisitors.map((v, i) => (
+              <View key={i} style={styles.visitorCard}>
+                <View style={styles.visitorIcon}>
+                  <Ionicons name="person-outline" size={22} color="#1E90FF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.visitorRow}>
+                    <Text style={styles.visitorName}>{v.name}</Text>
+                    <View
+                      style={[
+                        styles.badge,
+                        {
+                          backgroundColor:
+                            v.status === "Activo" ? "#2E8B5710" : "#eee",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: v.status === "Activo" ? "#2E8B57" : "#86868b",
+                          fontSize: 12,
+                        }}
+                      >
+                        {v.status}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.visitorInfo}>
+                    {v.blood} • {v.checkIn} • {v.time}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#86868b" />
+              </View>
+            ))}
           </View>
 
-          {activeVisitors.map((v) => (
-            <TouchableOpacity key={v.id} style={styles.visitorCard}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>
-                  {v.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </Text>
+          {/* Stats */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Estadísticas rápidas</Text>
+            <View style={styles.quickStats}>
+              <View style={styles.quickCard}>
+                <Ionicons name="trending-up" size={20} color="#2E8B57" />
+                <Text style={styles.quickValue}>+12%</Text>
+                <Text style={styles.quickLabel}>Esta semana</Text>
               </View>
-              <View style={styles.visitorInfo}>
-                <Text style={styles.visitorName}>{v.name}</Text>
-                <Text style={styles.visitorDetails}>
-                  {v.blood} • {v.location} • {v.time}
-                </Text>
+              <View style={styles.quickCard}>
+                <Ionicons name="calendar-outline" size={20} color="#1E90FF" />
+                <Text style={styles.quickValue}>3.2h</Text>
+                <Text style={styles.quickLabel}>Tiempo promedio</Text>
               </View>
-              {v.status === "alert" && (
-                <View style={styles.alertBadge}>
-                  <Text style={styles.alertText}>Alerta</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
+            </View>
+          </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+
+      {/* Modal Scanner */}
+      <Modal visible={showScanner} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Escanear código QR</Text>
+            <Text style={styles.modalSubtitle}>
+              Posiciona el código dentro del marco
+            </Text>
+
+            <View style={styles.scannerFrame}>
+              <Animated.View style={[styles.scanLine, animatedLine]} />
+              <Ionicons
+                name="qr-code-outline"
+                size={120}
+                color="#1a1a1a80"
+                style={{ position: "absolute", opacity: 0.2 }}
+              />
+            </View>
+
+            <View style={styles.scanStatus}>
+              <ActivityIndicator size="small" color="#1E90FF" />
+              <Text style={styles.scanTextStatus}>Buscando código QR...</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <TabBar activeTab="home" onTabChange={onTabChange || (() => {})} variant="company" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F5F5F7" },
-  header: {
-    backgroundColor: "#1E90FF",
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerLeft: { flexDirection: "row", alignItems: "center" },
-  logoContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 15,
-    padding: 6,
-    marginRight: 10,
-  },
-  logo: { width: 40, height: 40 },
-  headerTitle: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  headerSubtitle: { color: "#fff", opacity: 0.8, fontSize: 12 },
-  headerRight: { flexDirection: "row", gap: 12 },
-  icon: { marginHorizontal: 4 },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginVertical: 10,
-  },
-  statCard: {
-    backgroundColor: "#1E90FF",
-    borderRadius: 10,
-    padding: 10,
-    alignItems: "center",
-  },
-  statLabel: { color: "#fff", fontSize: 10 },
-  statValue: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-  scroll: { flex: 1, paddingHorizontal: 16 },
-  scanCard: {
-    backgroundColor: "#2E8B57",
-    padding: 20,
-    borderRadius: 20,
-    alignItems: "center",
-    marginVertical: 10,
-  },
-  scanTitle: { color: "#fff", fontSize: 16, fontWeight: "bold", marginTop: 10 },
-  scanSubtitle: { color: "#fff", opacity: 0.8, fontSize: 13, marginBottom: 10 },
-  scanButton: {
+  container: { flex: 1, backgroundColor: "#f5f5f7" },
+  header: { paddingTop: 60, paddingBottom: 30, paddingHorizontal: 20 },
+  headerTop: { flexDirection: "row", alignItems: "center" },
+  logoBox: {
+    width: 48,
+    height: 48,
     backgroundColor: "#fff",
     borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-  },
-  scanButtonText: { color: "#2E8B57", fontWeight: "bold" },
-  section: { marginVertical: 15 },
-  sectionTitle: { fontWeight: "bold", fontSize: 16, color: "#1a1a1a", marginBottom: 8 },
-  quickButton: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-    borderRadius: 15,
-    padding: 14,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  quickLeft: { flexDirection: "row", alignItems: "center" },
-  iconCircle: { padding: 10, borderRadius: 15, marginRight: 10 },
-  quickTitle: { color: "#1a1a1a", fontWeight: "500" },
-  quickSubtitle: { color: "#888", fontSize: 12 },
-  notificationDot: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    backgroundColor: "#FF7F11",
-    borderRadius: 4,
-  },
-  visitorsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  badge: {
-    backgroundColor: "#2E8B5715",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  badgeText: { color: "#2E8B57", fontWeight: "bold" },
-  visitorCard: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 15,
-    padding: 14,
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  avatarCircle: {
-    width: 45,
-    height: 45,
-    borderRadius: 25,
-    backgroundColor: "#2E8B5715",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
     marginRight: 10,
   },
-  avatarText: { color: "#2E8B57", fontWeight: "bold" },
-  visitorInfo: { flex: 1 },
-  visitorName: { color: "#1a1a1a", fontWeight: "600" },
-  visitorDetails: { color: "#86868b", fontSize: 12 },
-  alertBadge: {
-    backgroundColor: "#FF7F1115",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+  logo: { width: 30, height: 30 },
+  companyName: { color: "#fff", fontWeight: "600", fontSize: 18 },
+  companySub: { color: "#fff", opacity: 0.8, fontSize: 13 },
+  headerIcons: { flexDirection: "row", gap: 8 },
+  iconBtn: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 50,
+    padding: 8,
   },
-  alertText: { color: "#FF7F11", fontSize: 12 },
+  dot: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FF7F11",
+  },
+  statsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
+  statCard: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 14,
+    padding: 12,
+    marginHorizontal: 4,
+  },
+  statLabel: { color: "#86868b", fontSize: 12 },
+  statValue: { color: "#1a1a1a", fontWeight: "600", fontSize: 20 },
+  content: { paddingHorizontal: 20, marginTop: 20 },
+  scanButton: {
+    backgroundColor: "#1E90FF",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 20,
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  scanText: { color: "#fff", fontWeight: "600", marginLeft: 6, fontSize: 16 },
+  mapButton: {
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 20,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "#1E90FF40",
+    marginBottom: 20,
+  },
+  mapButtonText: { color: "#1E90FF", fontWeight: "600", marginLeft: 6, fontSize: 15 },
+  section: { marginTop: 15 },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sectionTitle: { fontWeight: "600", color: "#1a1a1a", fontSize: 16 },
+  sectionLink: { color: "#1E90FF", fontSize: 14 },
+  alertCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  alertWarning: { backgroundColor: "#FF7F1110", borderColor: "#FF7F1120" },
+  alertMessage: { color: "#1a1a1a", fontWeight: "500" },
+  alertTime: { color: "#86868b", fontSize: 12 },
+  visitorCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  visitorIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#1E90FF15",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  visitorRow: { flexDirection: "row", justifyContent: "space-between" },
+  visitorName: { color: "#1a1a1a", fontWeight: "500", fontSize: 15 },
+  visitorInfo: { color: "#86868b", fontSize: 13, marginTop: 2 },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  quickStats: { flexDirection: "row", justifyContent: "space-between" },
+  quickCard: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 14,
+    alignItems: "center",
+    marginHorizontal: 4,
+  },
+  quickValue: { color: "#1a1a1a", fontWeight: "600", fontSize: 18 },
+  quickLabel: { color: "#86868b", fontSize: 13 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 20,
+    width: "85%",
+    alignItems: "center",
+  },
+  modalTitle: { color: "#1a1a1a", fontWeight: "600", fontSize: 18 },
+  modalSubtitle: { color: "#86868b", fontSize: 13, marginBottom: 20 },
+  scannerFrame: {
+    width: 260,
+    height: 260,
+    borderRadius: 20,
+    backgroundColor: "#2E8B5710",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  scanLine: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: "#1E90FF",
+  },
+  scanStatus: { flexDirection: "row", alignItems: "center", marginTop: 14 },
+  scanTextStatus: { color: "#86868b", marginLeft: 6 },
 });

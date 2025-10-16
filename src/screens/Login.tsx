@@ -1,36 +1,62 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState } from "react";
 import {
-    Image,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
-
 interface LoginProps {
   onBack: () => void;
-  onLogin: (userType: "hiker" | "company") => void;
+  onLoginHiker: () => void; // 👈 llamado al login de senderista
+  onLoginCompany: () => void; // 👈 llamado al login de empresa
   onRegister: () => void;
 }
 
-export default function Login({ onBack, onLogin, onRegister }: LoginProps) {
+export default function Login({
+  onBack,
+  onLoginHiker,
+  onLoginCompany,
+  onRegister,
+}: LoginProps) {
   const [userType, setUserType] = useState<"hiker" | "company">("hiker");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = () => onLogin(userType);
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Error", "Por favor ingresa tus credenciales");
+      return;
+    }
+
+    await AsyncStorage.setItem("userToken", "123abc");
+    await AsyncStorage.setItem("userRole", userType);
+
+    if (userType === "company") onLoginCompany();
+    else onLoginHiker();
+  };
 
   return (
     <View style={styles.container}>
-      {/* Fondo (solo empresas) */}
       <Content
-  {...{ onBack, userType, setUserType, email, setEmail, password, setPassword, handleLogin, onRegister }}
-/>
-
+        {...{
+          onBack,
+          userType,
+          setUserType,
+          email,
+          setEmail,
+          password,
+          setPassword,
+          handleLogin,
+          onRegister,
+        }}
+      />
     </View>
   );
 }
@@ -64,7 +90,10 @@ function Content({
       </Animated.View>
 
       {/* Selector de tipo de usuario */}
-      <Animated.View entering={FadeInUp.duration(400).delay(100)} style={styles.selectorRow}>
+      <Animated.View
+        entering={FadeInUp.duration(400).delay(100)}
+        style={styles.selectorRow}
+      >
         <TouchableOpacity
           style={[
             styles.selectorButton,
@@ -95,11 +124,10 @@ function Content({
           onPress={() => setUserType("company")}
         >
           <MaterialCommunityIcons
-  name="office-building"
-  size={20}
-  color={userType === "company" ? "#1E90FF" : "#86868b"}
-/>
-
+            name="office-building"
+            size={20}
+            color={userType === "company" ? "#1E90FF" : "#86868b"}
+          />
           <Text
             style={[
               styles.selectorText,
@@ -112,7 +140,10 @@ function Content({
       </Animated.View>
 
       {/* Formulario */}
-      <Animated.View entering={FadeInUp.duration(400).delay(200)} style={styles.form}>
+      <Animated.View
+        entering={FadeInUp.duration(400).delay(200)}
+        style={styles.form}
+      >
         <View>
           <Text style={styles.label}>Correo electrónico</Text>
           <View style={styles.inputContainer}>
@@ -145,12 +176,22 @@ function Content({
         </View>
 
         <TouchableOpacity>
-          <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
+          <Text
+            style={[
+              styles.forgot,
+              { color: userType === "hiker" ? "#2E8B57" : "#1E90FF" },
+            ]}
+          >
+            ¿Olvidaste tu contraseña?
+          </Text>
         </TouchableOpacity>
       </Animated.View>
 
       {/* Acciones */}
-      <Animated.View entering={FadeInUp.duration(400).delay(300)} style={styles.actions}>
+      <Animated.View
+        entering={FadeInUp.duration(400).delay(300)}
+        style={styles.actions}
+      >
         <TouchableOpacity
           style={[
             styles.loginButton,
@@ -164,7 +205,14 @@ function Content({
         <View style={styles.registerRow}>
           <Text style={styles.registerLabel}>¿No tienes cuenta?</Text>
           <TouchableOpacity onPress={onRegister}>
-            <Text style={styles.registerLink}>Crear cuenta</Text>
+            <Text
+              style={[
+                styles.registerLink,
+                { color: userType === "hiker" ? "#2E8B57" : "#1E90FF" },
+              ]}
+            >
+              Crear cuenta
+            </Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -174,7 +222,6 @@ function Content({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-  background: { flex: 1 },
   inner: {
     flex: 1,
     paddingHorizontal: 20,
@@ -228,7 +275,7 @@ const styles = StyleSheet.create({
     height: 50,
     color: "#1a1a1a",
   },
-  forgot: { color: "#2E8B57", fontSize: 13, marginTop: 6 },
+  forgot: { fontSize: 13, marginTop: 6, textAlign: "right" },
   actions: { marginTop: 20 },
   loginButton: {
     height: 55,
@@ -243,5 +290,5 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   registerLabel: { color: "#86868b" },
-  registerLink: { color: "#2E8B57", fontWeight: "bold", marginLeft: 4 },
+  registerLink: { fontWeight: "bold", marginLeft: 4 },
 });

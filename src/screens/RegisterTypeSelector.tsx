@@ -1,12 +1,12 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 

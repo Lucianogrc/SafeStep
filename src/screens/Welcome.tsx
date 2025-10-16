@@ -1,14 +1,14 @@
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
-    Image,
-    ImageBackground,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  ImageBackground,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
 interface WelcomeProps {
   onGetStarted: () => void;
@@ -16,116 +16,104 @@ interface WelcomeProps {
 
 export default function Welcome({ onGetStarted }: WelcomeProps) {
   return (
-    <View style={styles.container}>
+    <LinearGradient colors={["#2E8B57", "#1E90FF"]} style={styles.gradient}>
       {/* Fondo con imagen */}
       <ImageBackground
-  source={require("../../assets/images/mountain-bg.jpg")}
-  style={styles.background}
-  imageStyle={{ opacity: 0.25 }}
->
+        source={require("../../assets/images/mountain-bg.jpg")}
+        style={styles.background}
+        imageStyle={{ opacity: 0.25 }}
+      >
+        <View style={styles.container}>
+          {/* Logo */}
+          <Image
+  source={require("../../assets/images/logo2.png")}
+  style={styles.logo}
+  resizeMode="contain"
+/>
 
 
-        {/* Contenido principal */}
-        <View style={styles.overlay}>
-          {/* LOGO */}
-          <Animated.View
-            entering={FadeInDown.duration(600)}
-            style={styles.logoContainer}
-          >
-            <Image
-              source={require("../../assets/images/logo2.png")}
-              style={styles.logo}
-            />
-          </Animated.View>
 
           {/* Título */}
-          <Animated.Text
-            entering={FadeInUp.duration(600).delay(200)}
-            style={styles.title}
-          >
-            SafeStep
-          </Animated.Text>
+          <Text style={styles.title}>SafeStep</Text>
 
-          {/* Subtítulo con ícono */}
-          <Animated.View
-            entering={FadeInUp.duration(600).delay(400)}
-            style={styles.subtitleRow}
-          >
-            <Feather name="activity" size={18} color="#fff" />
+          {/* Subtítulo */}
+          <View style={styles.subtitleContainer}>
+            <Ionicons name="trail-sign-outline" size={18} color="white" />
             <Text style={styles.subtitle}>Explora con confianza</Text>
-          </Animated.View>
+          </View>
 
-          {/* Botón */}
-          <Animated.View
-            entering={FadeInUp.duration(600).delay(600)}
-            style={styles.buttonContainer}
-          >
-            <TouchableOpacity style={styles.button} onPress={onGetStarted}>
-              <Text style={styles.buttonText}>Comenzar</Text>
-            </TouchableOpacity>
-            <Text style={styles.footerText}>
-              Protegiendo excursionistas desde 2025
-            </Text>
-          </Animated.View>
+          {/* Botón CTA */}
+          <TouchableOpacity style={styles.button} onPress={onGetStarted}>
+            <Text style={styles.buttonText}>Comenzar</Text>
+          </TouchableOpacity>
+
+          {/* Pie de página */}
+          <Text style={styles.footerText}>
+            Protegiendo excursionistas desde 2025
+          </Text>
         </View>
       </ImageBackground>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  gradient: {
+    flex: 1,
+  },
   background: {
     flex: 1,
-    backgroundColor: "#2E8B57",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  overlay: {
+  container: {
     flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 60,
+    paddingHorizontal: 24,
   },
-  logoContainer: {
-    marginTop: 100,
-    alignItems: "center",
+  logo: {
+    width: 130,
+    height: 130,
+    marginBottom: 16,
   },
-  logo: { width: 120, height: 120, resizeMode: "contain" },
   title: {
     fontSize: 48,
-    color: "#fff",
-    fontWeight: "bold",
-    textAlign: "center",
+    color: "white",
+    fontWeight: "700",
+    letterSpacing: -1,
+    marginBottom: 8,
   },
-  subtitleRow: {
+  subtitleContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 10,
+    marginTop: 8,
   },
-  subtitle: { color: "rgba(255,255,255,0.8)", fontSize: 14 },
-  buttonContainer: {
-    width: "80%",
-    alignItems: "center",
+  subtitle: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 14,
+    marginLeft: 6,
   },
   button: {
-    backgroundColor: "#fff",
+    marginTop: 60,
+    backgroundColor: "white",
+    paddingVertical: 16,
+    paddingHorizontal: 80,
     borderRadius: 20,
-    paddingVertical: 14,
-    width: "100%",
-    alignItems: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   buttonText: {
     color: "#2E8B57",
-    fontWeight: "bold",
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: "600",
   },
   footerText: {
+    marginTop: 20,
     color: "rgba(255,255,255,0.6)",
-    fontSize: 12,
-    marginTop: 10,
+    fontSize: 13,
+    textAlign: "center",
   },
 });
