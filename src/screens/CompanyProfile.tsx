@@ -1,7 +1,18 @@
-// src/screens/CompanyProfile.tsx
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
 import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  updateDoc,
+} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,6 +22,7 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
+import { auth, db } from "../firebaseConfig";
 import LogoutConfirmDialog from "./LogoutConfirmDialog";
 
 interface CompanyProfileProps {
@@ -21,36 +33,110 @@ interface CompanyProfileProps {
 export default function CompanyProfile({ onBack, onLogout }: CompanyProfileProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [companyData, setCompanyData] = useState({
-    name: "Parque Nacional Verde",
-    email: "contacto@parqueverde.com",
-    phone: "+1 234 567 8900",
-    address: "Calle Principal 123, Col. Centro, Ciudad de México, México",
-    website: "https://www.parqueverde.com",
-    description:
-      "Administramos un hermoso parque natural dedicado a la conservación y el ecoturismo responsable. Ofrecemos rutas de senderismo, observación de flora y fauna, y experiencias únicas en contacto con la naturaleza.",
+    companyName: "",
+    email: "",
+    phone: "",
+    address: "",
+    website: "",
+    description: "",
+    logoUrl: "",
   });
 
   const [editData, setEditData] = useState({ ...companyData });
+  const [recentVisitors, setRecentVisitors] = useState<any[]>([]);
 
-  const recentVisitors = [
-    { id: 1, name: "Juan Pérez", date: "Hoy, 10:30 AM", status: "active" },
-    { id: 2, name: "María García", date: "Hoy, 09:15 AM", status: "active" },
-    { id: 3, name: "Carlos López", date: "Ayer, 16:45 PM", status: "completed" },
-    { id: 4, name: "Ana Martínez", date: "Ayer, 14:20 PM", status: "completed" },
-  ];
+  // 🟢 Cargar datos desde Firestore
+  useEffect(() => {
+    const fetchCompanyData = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
 
-  const handleSave = () => {
-    setCompanyData({ ...editData });
-    setIsEditing(false);
+        const companyRef = doc(db, "companies", user.uid);
+        const snap = await getDoc(companyRef);
+
+        if (snap.exists()) {
+          const data = snap.data();
+          setCompanyData({
+            companyName: data.companyName || "",
+            email: data.email || "",
+            phone: data.phone || "",
+            address: data.address || "",
+            website: data.website || "",
+            description: data.description || "",
+            logoUrl: data.logoUrl || "",
+          });
+          setEditData({
+            companyName: data.companyName || "",
+            email: data.email || "",
+            phone: data.phone || "",
+            address: data.address || "",
+            website: data.website || "",
+            description: data.description || "",
+            logoUrl: data.logoUrl || "",
+          });
+        }
+
+        // 🔹 Cargar visitantes recientes
+        const visitorsRef = collection(db, "companies", user.uid, "visitors");
+        const q = query(visitorsRef, orderBy("checkIn", "desc"), limit(4));
+        const snapVisitors = await getDocs(q);
+        const visitorsList = snapVisitors.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setRecentVisitors(visitorsList);
+      } catch (err) {
+        console.log("❌ Error cargando perfil de empresa:", err);
+        Alert.alert("Error", "No se pudieron cargar los datos de la empresa");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCompanyData();
+  }, []);
+
+  // 🟢 Guardar cambios en Firestore
+  const handleSave = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const companyRef = doc(db, "companies", user.uid);
+      await updateDoc(companyRef, {
+        companyName: editData.companyName,
+        email: editData.email,
+        phone: editData.phone,
+        address: editData.address,
+        website: editData.website,
+        description: editData.description,
+      });
+
+      setCompanyData(editData);
+      setIsEditing(false);
+      Alert.alert("✅ Guardado", "Los cambios se han actualizado correctamente");
+    } catch (err) {
+      console.log("❌ Error al guardar:", err);
+      Alert.alert("Error", "No se pudieron guardar los cambios");
+    }
   };
 
   const handleCancel = () => {
     setEditData({ ...companyData });
     setIsEditing(false);
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#1E90FF" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -89,8 +175,8 @@ export default function CompanyProfile({ onBack, onLogout }: CompanyProfileProps
         <Animated.View entering={FadeInUp.duration(400)} style={styles.centered}>
           <View style={styles.logoWrapper}>
             <View style={styles.logoContainer}>
-              {logoPreview ? (
-                <Image source={{ uri: logoPreview }} style={styles.logoImage} />
+              {companyData.logoUrl ? (
+                <Image source={{ uri: companyData.logoUrl }} style={styles.logoImage} />
               ) : (
                 <Feather name="image" size={40} color="#1E90FF" />
               )}
@@ -99,12 +185,12 @@ export default function CompanyProfile({ onBack, onLogout }: CompanyProfileProps
 
           {isEditing ? (
             <TextInput
-              value={editData.name}
-              onChangeText={(text) => setEditData({ ...editData, name: text })}
+              value={editData.companyName}
+              onChangeText={(text) => setEditData({ ...editData, companyName: text })}
               style={styles.inputName}
             />
           ) : (
-            <Text style={styles.name}>{companyData.name}</Text>
+            <Text style={styles.name}>{companyData.companyName}</Text>
           )}
 
           <View style={styles.badge}>
@@ -112,7 +198,7 @@ export default function CompanyProfile({ onBack, onLogout }: CompanyProfileProps
           </View>
         </Animated.View>
 
-        {/* Información */}
+        {/* Información de contacto */}
         <Animated.View entering={FadeInUp.delay(100)} style={styles.section}>
           <Text style={styles.sectionTitle}>Información de contacto</Text>
 
@@ -201,7 +287,9 @@ export default function CompanyProfile({ onBack, onLogout }: CompanyProfileProps
               <Text style={styles.counter}>{editData.description.length}/200</Text>
             </View>
           ) : (
-            <Text style={styles.infoText}>{companyData.description}</Text>
+            <Text style={styles.infoText}>
+              {companyData.description || "Agrega una breve descripción sobre tu empresa."}
+            </Text>
           )}
         </Animated.View>
 
@@ -220,56 +308,56 @@ export default function CompanyProfile({ onBack, onLogout }: CompanyProfileProps
           </View>
         )}
 
-        {/* Visitantes */}
+        {/* Visitantes recientes */}
         <Animated.View entering={FadeInUp.delay(300)} style={styles.section}>
           <Text style={styles.sectionTitle}>Visitantes recientes</Text>
 
-          {recentVisitors.map((v) => (
-            <View key={v.id} style={styles.visitorCard}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {v.name.split(" ").map((n) => n[0]).join("")}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.visitorName}>{v.name}</Text>
-                <Text style={styles.visitorTime}>{v.date}</Text>
-              </View>
-              <View
-                style={[
-                  styles.statusBadge,
-                  v.status === "active"
-                    ? styles.activeBadge
-                    : styles.completedBadge,
-                ]}
-              >
-                <Text
-                  style={
-                    v.status === "active"
-                      ? styles.activeText
-                      : styles.completedText
-                  }
+          {recentVisitors.length === 0 ? (
+            <Text style={{ color: "#86868b" }}>No hay visitantes recientes.</Text>
+          ) : (
+            recentVisitors.map((v) => (
+              <View key={v.id} style={styles.visitorCard}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {v.name?.split(" ").map((n: string) => n[0]).join("")}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.visitorName}>{v.name}</Text>
+                  <Text style={styles.visitorTime}>
+                    {v.checkIn?.toDate
+                      ? v.checkIn.toDate().toLocaleString()
+                      : "Sin fecha"}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    v.status === "Activo" ? styles.activeBadge : styles.completedBadge,
+                  ]}
                 >
-                  {v.status === "active" ? "Activo" : "Salió"}
-                </Text>
+                  <Text
+                    style={
+                      v.status === "Activo" ? styles.activeText : styles.completedText
+                    }
+                  >
+                    {v.status === "Activo" ? "Activo" : "Salió"}
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </Animated.View>
       </ScrollView>
 
       <LogoutConfirmDialog
-  isOpen={showLogoutDialog}
-  onConfirm={() => {
-    setShowLogoutDialog(false);
-    if (onLogout) {
-      // Espera un momento antes de ejecutar el cierre global
-      setTimeout(() => onLogout(), 200);
-    }
-  }}
-  onCancel={() => setShowLogoutDialog(false)}
-/>
-
+        isOpen={showLogoutDialog}
+        onConfirm={() => {
+          setShowLogoutDialog(false);
+          setTimeout(() => onLogout?.(), 200);
+        }}
+        onCancel={() => setShowLogoutDialog(false)}
+      />
     </View>
   );
 }
@@ -351,11 +439,7 @@ const styles = StyleSheet.create({
   },
   descBox: { backgroundColor: "#fff", borderRadius: 16, padding: 12 },
   counter: { textAlign: "right", fontSize: 12, color: "#86868b", marginTop: 4 },
-  editActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginVertical: 20,
-  },
+  editActions: { flexDirection: "row", gap: 10, marginVertical: 20 },
   cancelBtn: {
     flex: 1,
     borderWidth: 1.5,
@@ -391,21 +475,17 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#2E8B5715",
+    backgroundColor: "#1E90FF15",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
   },
-  avatarText: { color: "#2E8B57", fontWeight: "700" },
+  avatarText: { color: "#1E90FF", fontWeight: "700" },
   visitorName: { color: "#1a1a1a", fontSize: 15 },
   visitorTime: { color: "#86868b", fontSize: 13 },
-  statusBadge: {
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  activeBadge: { backgroundColor: "#2E8B5715" },
+  statusBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  activeBadge: { backgroundColor: "#1E90FF15" },
   completedBadge: { backgroundColor: "#e5e5ea" },
-  activeText: { color: "#2E8B57", fontWeight: "500", fontSize: 12 },
+  activeText: { color: "#1E90FF", fontWeight: "500", fontSize: 12 },
   completedText: { color: "#666", fontWeight: "500", fontSize: 12 },
 });

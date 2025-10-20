@@ -1,16 +1,20 @@
 // src/screens/HikerProfile.tsx
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
+import { auth, db } from "../firebaseConfig";
 
 interface HikerProfileProps {
   onBack: () => void;
@@ -20,26 +24,97 @@ interface HikerProfileProps {
 export default function HikerProfile({ onBack, onLogout }: HikerProfileProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const [data, setData] = useState({
-    name: "Juan Pérez García",
-    blood: "O+",
-    emergency: "+1 234 567 8900",
-    weight: "75",
-    height: "175",
-    description:
-      "Amante del senderismo y la naturaleza. Experiencia en rutas de montaña.",
+    name: "",
+    blood: "",
+    emergency: "",
+    weight: "",
+    height: "",
+    description: "",
   });
+
   const [edit, setEdit] = useState({ ...data });
 
-  const handleSave = () => {
-    setData(edit);
-    setIsEditing(false);
+  // 🟢 Cargar datos del usuario desde Firestore
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const userRef = doc(db, "users", user.uid);
+        const snap = await getDoc(userRef);
+
+        if (snap.exists()) {
+          const userData = snap.data();
+          setData({
+            name: userData.fullName || "",
+            blood: userData.blood || "",
+            emergency: userData.emergency || "",
+            weight: "",
+            height: "",
+            description: "",
+          });
+          setEdit({
+            name: userData.fullName || "",
+            blood: userData.blood || "",
+            emergency: userData.emergency || "",
+            weight: "",
+            height: "",
+            description: "",
+          });
+        }
+      } catch (err) {
+        console.log("❌ Error cargando perfil:", err);
+        Alert.alert("Error", "No se pudieron cargar tus datos");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  // 🟢 Guardar cambios en Firestore
+  const handleSave = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        fullName: edit.name,
+        blood: edit.blood,
+        emergency: edit.emergency,
+        weight: edit.weight,
+        height: edit.height,
+        description: edit.description,
+      });
+
+      setData(edit);
+      setIsEditing(false);
+
+      Alert.alert("✅ Cambios guardados", "Tu perfil se ha actualizado correctamente");
+    } catch (err) {
+      console.log("❌ Error al guardar perfil:", err);
+      Alert.alert("Error", "No se pudieron guardar los cambios");
+    }
   };
 
   const handleCancel = () => {
     setEdit({ ...data });
     setIsEditing(false);
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#2E8B57" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -85,9 +160,11 @@ export default function HikerProfile({ onBack, onLogout }: HikerProfileProps) {
                   <View style={styles.avatarPlaceholder}>
                     <Text style={styles.avatarInitials}>
                       {data.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
+                        ? data.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                        : "?"}
                     </Text>
                   </View>
                 )}
@@ -109,7 +186,7 @@ export default function HikerProfile({ onBack, onLogout }: HikerProfileProps) {
                   placeholder="Tu nombre"
                 />
               ) : (
-                <Text style={styles.nameText}>{data.name}</Text>
+                <Text style={styles.nameText}>{data.name || "Sin nombre"}</Text>
               )}
               <Text style={styles.badge}>Cuenta Hiker</Text>
             </View>
@@ -151,7 +228,7 @@ export default function HikerProfile({ onBack, onLogout }: HikerProfileProps) {
               ) : (
                 <View style={styles.infoRow}>
                   <Feather name="droplet" size={16} color="#86868b" />
-                  <Text style={styles.infoText}>{data.blood}</Text>
+                  <Text style={styles.infoText}>{data.blood || "No especificado"}</Text>
                 </View>
               )}
             </View>
@@ -165,11 +242,14 @@ export default function HikerProfile({ onBack, onLogout }: HikerProfileProps) {
                   value={edit.weight}
                   onChangeText={(v) => setEdit({ ...edit, weight: v })}
                   keyboardType="numeric"
+                  placeholder="Ej. 70"
                 />
               ) : (
                 <View style={styles.infoRow}>
                   <Feather name="activity" size={16} color="#86868b" />
-                  <Text style={styles.infoText}>{data.weight} kg</Text>
+                  <Text style={styles.infoText}>
+                    {data.weight ? `${data.weight} kg` : "Sin registrar"}
+                  </Text>
                 </View>
               )}
             </View>
@@ -183,11 +263,14 @@ export default function HikerProfile({ onBack, onLogout }: HikerProfileProps) {
                   value={edit.height}
                   onChangeText={(v) => setEdit({ ...edit, height: v })}
                   keyboardType="numeric"
+                  placeholder="Ej. 175"
                 />
               ) : (
                 <View style={styles.infoRow}>
                   <Feather name="bar-chart-2" size={16} color="#86868b" />
-                  <Text style={styles.infoText}>{data.height} cm</Text>
+                  <Text style={styles.infoText}>
+                    {data.height ? `${data.height} cm` : "Sin registrar"}
+                  </Text>
                 </View>
               )}
             </View>
@@ -205,11 +288,12 @@ export default function HikerProfile({ onBack, onLogout }: HikerProfileProps) {
                 value={edit.emergency}
                 onChangeText={(v) => setEdit({ ...edit, emergency: v })}
                 keyboardType="phone-pad"
+                placeholder="Ej. +52 3312345678"
               />
             ) : (
               <View style={styles.infoRow}>
                 <Feather name="phone" size={16} color="#86868b" />
-                <Text style={styles.infoText}>{data.emergency}</Text>
+                <Text style={styles.infoText}>{data.emergency || "No registrado"}</Text>
               </View>
             )}
           </View>
@@ -226,12 +310,15 @@ export default function HikerProfile({ onBack, onLogout }: HikerProfileProps) {
                   multiline
                   value={edit.description}
                   onChangeText={(v) => setEdit({ ...edit, description: v })}
+                  placeholder="Escribe una breve bio..."
                   maxLength={150}
                 />
                 <Text style={styles.counter}>{edit.description.length}/150</Text>
               </>
             ) : (
-              <Text style={styles.description}>{data.description}</Text>
+              <Text style={styles.description}>
+                {data.description || "Agrega una breve descripción sobre ti."}
+              </Text>
             )}
           </View>
         </Animated.View>
@@ -259,9 +346,9 @@ export default function HikerProfile({ onBack, onLogout }: HikerProfileProps) {
   );
 }
 
+// 🧩 Estilos iguales a tu versión
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f7" },
-
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -279,7 +366,6 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 40,
   },
-
   card: {
     backgroundColor: "#fff",
     borderRadius: 20,
@@ -290,8 +376,6 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
   },
-
-  // Avatar
   avatarBox: { position: "relative", marginBottom: 12 },
   avatarPlaceholder: {
     width: 100,
@@ -332,7 +416,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 10,
   },
-
   sectionTitle: {
     color: "#1a1a1a",
     fontSize: 16,
@@ -352,12 +435,7 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   infoText: { color: "#1a1a1a", fontSize: 15 },
   field: { marginTop: 10 },
-
-  bloodGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
+  bloodGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   bloodBtn: {
     width: "22%",
     height: 40,
@@ -368,10 +446,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   bloodText: { color: "#555" },
-
   description: { color: "#1a1a1a", fontSize: 15, lineHeight: 22 },
   counter: { color: "#86868b", fontSize: 12, textAlign: "right", marginTop: 6 },
-
   editActions: {
     flexDirection: "row",
     gap: 10,
@@ -393,7 +469,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveText: { color: "#fff", fontWeight: "600" },
-
   logoutBtn: {
     flexDirection: "row",
     justifyContent: "center",
@@ -404,9 +479,5 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginTop: 20,
   },
-  logoutText: {
-    color: "#ff3b30",
-    fontWeight: "600",
-    marginLeft: 6,
-  },
+  logoutText: { color: "#ff3b30", fontWeight: "600", marginLeft: 6 },
 });

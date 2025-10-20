@@ -1,8 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import React, { useMemo, useState } from "react";
 import {
-  Image,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,361 +12,391 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { auth, db } from "../firebaseConfig";
 
 interface CompanyRegisterProps {
   onBack: () => void;
   onComplete: () => void;
 }
 
-const steps = [
-  { id: "email", title: "Correo electrónico", icon: "mail-outline" },
-  { id: "password", title: "Contraseña", icon: "lock-closed-outline" },
-  { id: "confirmPassword", title: "Confirmar contraseña", icon: "lock-closed-outline" },
-  { id: "basic", title: "Información básica", icon: "business-outline" },
-  { id: "contact", title: "Datos de contacto", icon: "call-outline" },
-  { id: "details", title: "Detalles adicionales", icon: "document-text-outline" },
+type StepType = "email" | "password" | "text" | "tel" | "url" | "consent";
+
+interface StepDef {
+  id:
+    | "email"
+    | "password"
+    | "confirmPassword"
+    | "companyName"
+    | "industry"
+    | "address"
+    | "city"
+    | "contactName"
+    | "phone"
+    | "website"
+    | "description"
+    | "consent";
+  title: string;
+  icon: keyof typeof Feather.glyphMap;
+  type: StepType;
+}
+
+const steps: StepDef[] = [
+  { id: "email", title: "Correo de la empresa", icon: "mail", type: "email" },
+  { id: "password", title: "Crea una contraseña", icon: "lock", type: "password" },
+  { id: "confirmPassword", title: "Confirma tu contraseña", icon: "lock", type: "password" },
+  { id: "companyName", title: "Nombre de la empresa", icon: "briefcase", type: "text" },
+  { id: "industry", title: "Industria o sector", icon: "grid", type: "text" },
+  { id: "address", title: "Dirección completa", icon: "map-pin", type: "text" },
+  { id: "city", title: "Ciudad donde opera", icon: "home", type: "text" },
+  { id: "contactName", title: "Nombre del contacto principal", icon: "user", type: "text" },
+  { id: "phone", title: "Teléfono de contacto", icon: "phone", type: "tel" },
+  { id: "website", title: "Sitio web (opcional)", icon: "globe", type: "url" },
+  { id: "description", title: "Describe tu empresa y servicios", icon: "file-text", type: "text" },
+  { id: "consent", title: "Términos y políticas", icon: "shield", type: "consent" },
 ];
 
-export default function CompanyRegister({ onBack, onComplete }: CompanyRegisterProps) {
+export default function CompanyRegisterPro({ onBack, onComplete }: CompanyRegisterProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     confirmPassword: "",
     companyName: "",
-    phone: "",
+    industry: "",
     address: "",
+    city: "",
+    contactName: "",
+    phone: "",
     website: "",
     description: "",
+    consent: false,
   });
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const step = steps[currentStep];
-  const progress = ((currentStep + 1) / steps.length) * 100;
+  const progress = useMemo(() => ((currentStep + 1) / steps.length) * 100, [currentStep]);
 
-  const updateField = (field: string, value: string) => {
-    setFormData({ ...formData, [field]: value });
-    setErrors({});
+  const updateField = (val: string | boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      [step.id]: val ?? "",
+    }));
   };
 
-  const validateEmail = (email: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const setError = (k: string, msg: string) => setErrors({ [k]: msg });
+  const clearError = () => setErrors({});
 
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const validatePassword = (password: string) => password.length >= 8;
 
-  const validateStep = () => {
-    if (step.id === "email" && !validateEmail(formData.email)) {
-      setErrors({ email: "Correo inválido" });
-      return false;
+  const validateCurrentStep = () => {
+    const id = step.id as keyof typeof formData;
+    const value = formData[id];
+
+    if (id === "email") {
+      if (!value) return setError("email", "El correo es obligatorio"), false;
+      if (!validateEmail(String(value))) return setError("email", "Correo inválido"), false;
     }
-    if (step.id === "password" && !validatePassword(formData.password)) {
-      setErrors({ password: "Debe tener mínimo 8 caracteres" });
-      return false;
+    if (id === "password") {
+      if (!validatePassword(String(value))) return setError("password", "Debe tener al menos 8 caracteres"), false;
     }
-    if (
-      step.id === "confirmPassword" &&
-      formData.confirmPassword !== formData.password
-    ) {
-      setErrors({ confirmPassword: "Las contraseñas no coinciden" });
-      return false;
+    if (id === "confirmPassword") {
+      if (value !== formData.password) return setError("confirmPassword", "Las contraseñas no coinciden"), false;
     }
-    setErrors({});
+    clearError();
     return true;
   };
 
   const handleNext = () => {
-    if (!validateStep()) return;
-    if (currentStep < steps.length - 1) setCurrentStep(currentStep + 1);
-    else onComplete();
+    if (!validateCurrentStep()) return;
+    if (currentStep < steps.length - 1) setCurrentStep((s) => s + 1);
+    else setShowConfirmation(true);
   };
 
-  const handleBack = () => {
-    if (currentStep > 0) setCurrentStep(currentStep - 1);
+  const handleBackStep = () => {
+    clearError();
+    if (currentStep > 0) setCurrentStep((s) => s - 1);
     else onBack();
   };
 
-  const canContinue =
-    (step.id === "email" && validateEmail(formData.email)) ||
-    (step.id === "password" && validatePassword(formData.password)) ||
-    (step.id === "confirmPassword" &&
-      formData.confirmPassword === formData.password) ||
-    (step.id === "basic" && formData.companyName.trim() !== "") ||
-    (step.id === "contact" &&
-      formData.phone.trim() !== "" &&
-      formData.address.trim() !== "") ||
-    (step.id === "details" && formData.description.trim() !== "");
+  const handleFinish = async () => {
+    try {
+      if (!formData.email || !formData.password || !formData.companyName) {
+        Alert.alert("Error", "Completa todos los campos requeridos");
+        return;
+      }
 
+      const { email, password } = formData;
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      await setDoc(doc(db, "companies", user.uid), {
+        ...formData,
+        createdAt: serverTimestamp(),
+      });
+
+      Alert.alert("Registro exitoso", "Tu empresa ha sido registrada correctamente.");
+      onComplete();
+    } catch (err: any) {
+      console.log("❌ Error:", err);
+      if (err.code === "auth/email-already-in-use") {
+        Alert.alert("Error", "Este correo ya está en uso. Inicia sesión o usa otro.");
+      } else {
+        Alert.alert("Error", err.message || "Error al crear la cuenta.");
+      }
+    }
+  };
+
+  const currentValue = formData[step.id as keyof typeof formData];
+  const canContinue =
+    step.type === "consent" ? formData.consent : !!currentValue || step.id === "website";
+
+  // ✅ Pantalla final
+  if (showConfirmation) {
+    return (
+      <LinearGradient colors={["#FFFFFF", "#E6F0FF"]} style={styles.container}>
+        <View style={styles.centered}>
+          <View style={styles.bigIcon}>
+            <Ionicons name="business-outline" size={54} color="#fff" />
+          </View>
+          <View style={styles.circleCheck}>
+            <Feather name="check" size={28} color="#1E90FF" />
+          </View>
+
+          <Text style={styles.titleCenter}>¡Tu empresa fue registrada!</Text>
+          <Text style={styles.subtitleCenter}>
+            Ahora puedes acceder al panel de empresas y publicar tus servicios.
+          </Text>
+
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleFinish}>
+            <Ionicons name="log-in-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.primaryBtnText}>Ir al inicio</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    );
+  }
+
+  // ✅ Formulario paso a paso
   return (
-    <LinearGradient colors={["#FFFFFF", "#E6F0FF"]} style={{ flex: 1, paddingTop: 50 }}>
-      {/* Header */}
+    <LinearGradient colors={["#FFFFFF", "#E6F0FF"]} style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack}>
-          <Ionicons name="arrow-back-outline" size={24} color="#1A1A1A" />
+        <TouchableOpacity onPress={handleBackStep} style={styles.iconBtn}>
+          <Feather name="arrow-left" size={22} color="#1a1a1a" />
         </TouchableOpacity>
         <Text style={styles.stepText}>
-          {currentStep + 1} / {steps.length}
+          {currentStep + 1} de {steps.length}
         </Text>
       </View>
 
-      {/* Progress Bar */}
-      <View style={styles.progressContainer}>
-        <View style={[styles.progressFill, { width: `${progress}%` }]} />
+      <View style={styles.progressBarWrap}>
+        <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        {/* Step Icon */}
-        <View style={styles.iconContainer}>
-          <View style={styles.iconCircle}>
-            <Ionicons name={step.icon as any} size={30} color="#1E90FF" />
-          </View>
-          <Text style={styles.stepTitle}>{step.title}</Text>
+      <ScrollView contentContainerStyle={styles.scrollBody} keyboardShouldPersistTaps="handled">
+        <View style={styles.stepIcon}>
+          <Feather name={step.icon} size={26} color="#1E90FF" />
         </View>
+        <Text style={styles.title}>{step.title}</Text>
 
-        {/* Email */}
-        {step.id === "email" && (
+        {/* CAMPOS */}
+        {["email", "password", "confirmPassword"].includes(step.id) ? (
           <>
-            <TextInput
-              style={styles.input}
-              placeholder="contacto@empresa.com"
-              keyboardType="email-address"
-              value={formData.email}
-              onChangeText={(t) => updateField("email", t)}
-            />
-            {errors.email && (
-              <Text style={styles.errorText}>
-                <Ionicons name="alert-circle-outline" size={14} color="#FF3B30" /> {errors.email}
-              </Text>
-            )}
-          </>
-        )}
-
-        {/* Password */}
-        {step.id === "password" && (
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              placeholder="********"
-              secureTextEntry={!showPassword}
-              value={formData.password}
-              onChangeText={(t) => updateField("password", t)}
-            />
-            <TouchableOpacity
-              style={styles.eyeIcon}
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={20}
-                color="#86868b"
+            <View style={styles.inputWrap}>
+              <Feather name={step.icon} size={18} color="#86868b" style={styles.inputLeftIcon} />
+              <TextInput
+                value={String(currentValue ?? "")}
+                onChangeText={(t) => updateField(t)}
+                placeholder={
+                  step.id === "email"
+                    ? "empresa@correo.com"
+                    : "********"
+                }
+                secureTextEntry={
+                  step.id === "password"
+                    ? !showPassword
+                    : step.id === "confirmPassword"
+                    ? !showConfirmPassword
+                    : false
+                }
+                autoCapitalize="none"
+                keyboardType={step.id === "email" ? "email-address" : "default"}
+                style={styles.input}
               />
-            </TouchableOpacity>
-            {errors.password && (
-              <Text style={styles.errorText}>
-                <Ionicons name="alert-circle-outline" size={14} color="#FF3B30" /> {errors.password}
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Confirm Password */}
-        {step.id === "confirmPassword" && (
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              placeholder="Confirmar contraseña"
-              secureTextEntry={!showConfirmPassword}
-              value={formData.confirmPassword}
-              onChangeText={(t) => updateField("confirmPassword", t)}
-            />
-            <TouchableOpacity
-              style={styles.eyeIcon}
-              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-            >
-              <Ionicons
-                name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
-                size={20}
-                color="#86868b"
-              />
-            </TouchableOpacity>
-            {errors.confirmPassword && (
-              <Text style={styles.errorText}>
-                <Ionicons name="alert-circle-outline" size={14} color="#FF3B30" /> {errors.confirmPassword}
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Basic Info */}
-        {step.id === "basic" && (
-          <>
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre de la empresa"
-              value={formData.companyName}
-              onChangeText={(t) => updateField("companyName", t)}
-            />
-            <View style={styles.logoContainer}>
-              <View style={styles.logoPreview}>
-                {logoPreview ? (
-                  <Image source={{ uri: logoPreview }} style={styles.logoImage} />
-                ) : (
-                  <Ionicons name="image-outline" size={32} color="#86868b" />
-                )}
-              </View>
-              <TouchableOpacity style={styles.logoButton}>
-                <Text style={styles.logoButtonText}>Seleccionar imagen</Text>
-              </TouchableOpacity>
+              {step.id === "password" && (
+                <TouchableOpacity
+                  style={styles.inputRightIcon}
+                  onPress={() => setShowPassword((v) => !v)}
+                >
+                  <Feather
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={18}
+                    color="#86868b"
+                  />
+                </TouchableOpacity>
+              )}
+              {step.id === "confirmPassword" && (
+                <TouchableOpacity
+                  style={styles.inputRightIcon}
+                  onPress={() => setShowConfirmPassword((v) => !v)}
+                >
+                  <Feather
+                    name={showConfirmPassword ? "eye-off" : "eye"}
+                    size={18}
+                    color="#86868b"
+                  />
+                </TouchableOpacity>
+              )}
             </View>
+            {errors[step.id] && <Text style={styles.errorText}>{errors[step.id]}</Text>}
           </>
+        ) : step.type === "consent" ? (
+          <TouchableOpacity
+            onPress={() => updateField(!formData.consent)}
+            style={[
+              styles.consentRow,
+              formData.consent && { borderColor: "#1E90FF", backgroundColor: "#1E90FF15" },
+            ]}
+          >
+            <Feather
+              name={formData.consent ? "check-square" : "square"}
+              size={20}
+              color={formData.consent ? "#1E90FF" : "#86868b"}
+            />
+            <View style={{ marginLeft: 10 }}>
+              <Text style={styles.consentTitle}>Acepto los términos de SafeStep Empresas</Text>
+              <Text style={styles.consentText}>
+                Autorizo el uso de mis datos para ofrecer servicios dentro de la plataforma.
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <TextInput
+            value={String(currentValue ?? "")}
+            onChangeText={(t) => updateField(t)}
+            placeholder={
+              step.id === "website"
+                ? "https://miempresa.com"
+                : step.id === "phone"
+                ? "+52 33 1234 5678"
+                : ""
+            }
+            style={styles.input}
+            keyboardType={
+              step.type === "tel"
+                ? "phone-pad"
+                : step.type === "url"
+                ? "url"
+                : "default"
+            }
+          />
         )}
 
-        {/* Contact */}
-        {step.id === "contact" && (
-          <>
-            <TextInput
-              style={styles.input}
-              placeholder="Teléfono"
-              keyboardType="phone-pad"
-              value={formData.phone}
-              onChangeText={(t) => updateField("phone", t)}
-            />
-            <TextInput
-              style={[styles.input, { height: 90 }]}
-              placeholder="Dirección completa"
-              multiline
-              value={formData.address}
-              onChangeText={(t) => updateField("address", t)}
-            />
-          </>
-        )}
-
-        {/* Details */}
-        {step.id === "details" && (
-          <>
-            <TextInput
-              style={styles.input}
-              placeholder="Sitio web (opcional)"
-              value={formData.website}
-              onChangeText={(t) => updateField("website", t)}
-            />
-            <TextInput
-              style={[styles.input, { height: 100 }]}
-              placeholder="Describe tu empresa y servicios..."
-              multiline
-              maxLength={200}
-              value={formData.description}
-              onChangeText={(t) => updateField("description", t)}
-            />
-          </>
-        )}
-      </ScrollView>
-
-      {/* Continue Button */}
-      <View style={styles.footer}>
+        {/* BOTONES */}
         <TouchableOpacity
-          style={[styles.continueButton, { opacity: canContinue ? 1 : 0.5 }]}
           disabled={!canContinue}
           onPress={handleNext}
+          style={[styles.primaryBtn, !canContinue && { opacity: 0.5 }]}
         >
-          <Text style={styles.continueText}>
-            {currentStep === steps.length - 1
-              ? "Crear cuenta de empresa"
-              : "Continuar"}
-          </Text>
-          <Ionicons
-            name={
-              currentStep === steps.length - 1
-                ? "checkmark-outline"
-                : "arrow-forward-outline"
-            }
-            size={20}
-            color="white"
-            style={{ marginLeft: 8 }}
-          />
+          {currentStep === steps.length - 1 ? (
+            <>
+              <Feather name="check" size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.primaryBtnText}>Completar registro</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.primaryBtnText}>Continuar</Text>
+              <Feather name="arrow-right" size={18} color="#fff" style={{ marginLeft: 8 }} />
+            </>
+          )}
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
   header: {
+    paddingTop: 54,
+    paddingHorizontal: 16,
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
     alignItems: "center",
+    justifyContent: "space-between",
   },
-  stepText: { color: "#86868b", fontSize: 14 },
-  progressContainer: {
+  iconBtn: { padding: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.05)" },
+  stepText: { color: "#86868b" },
+  progressBarWrap: {
     height: 4,
-    backgroundColor: "#e0e0e0",
+    backgroundColor: "#e6e6ea",
     borderRadius: 2,
-    marginHorizontal: 20,
-    marginTop: 8,
+    marginTop: 10,
   },
-  progressFill: {
-    height: 4,
-    backgroundColor: "#1E90FF",
-    borderRadius: 2,
+  progressBarFill: { height: 4, backgroundColor: "#1E90FF", borderRadius: 2 },
+  scrollBody: { paddingTop: 22, paddingHorizontal: 20, paddingBottom: 10 },
+  stepIcon: {
+    alignSelf: "flex-start",
+    backgroundColor: "#1E90FF15",
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 12,
   },
-  scrollContainer: { paddingHorizontal: 24, paddingBottom: 100 },
-  iconContainer: { alignItems: "center", marginBottom: 20 },
-  iconCircle: {
-    backgroundColor: "#1E90FF20",
-    padding: 16,
-    borderRadius: 20,
-  },
-  stepTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1A1A1A",
-    marginTop: 12,
-  },
+  title: { fontSize: 20, fontWeight: "700", color: "#1a1a1a" },
+  inputWrap: { position: "relative", justifyContent: "center" },
   input: {
     backgroundColor: "#f5f5f7",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingHorizontal: 48,
+    height: 56,
     fontSize: 16,
-    marginVertical: 6,
+    color: "#1a1a1a",
   },
-  inputWrapper: { position: "relative", marginBottom: 10 },
-  eyeIcon: { position: "absolute", right: 16, top: 18 },
-  errorText: { color: "#FF3B30", marginTop: 4, fontSize: 13 },
-  logoContainer: {
+  inputLeftIcon: { position: "absolute", left: 14, zIndex: 1 },
+  inputRightIcon: { position: "absolute", right: 14, zIndex: 1 },
+  primaryBtn: {
+    marginTop: 20,
+    backgroundColor: "#1E90FF",
+    borderRadius: 16,
+    minHeight: 52,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  errorText: { color: "red", fontSize: 12, marginTop: 4 },
+  consentRow: {
+    borderWidth: 1.5,
+    borderColor: "#ddd",
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  consentTitle: { color: "#1a1a1a", fontWeight: "600" },
+  consentText: { color: "#86868b", fontSize: 12 },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
+  bigIcon: {
+    width: 112,
+    height: 112,
+    borderRadius: 28,
+    backgroundColor: "#1E90FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  circleCheck: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#1E90FF15",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 12,
   },
-  logoPreview: {
-    width: 70,
-    height: 70,
-    backgroundColor: "#f5f5f7",
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  logoImage: { width: 70, height: 70, borderRadius: 16 },
-  logoButton: {
-    borderWidth: 1,
-    borderColor: "#1E90FF40",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  logoButtonText: { color: "#1E90FF", fontWeight: "500" },
-  footer: { padding: 20 },
-  continueButton: {
-    backgroundColor: "#1E90FF",
-    borderRadius: 14,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 14,
-  },
-  continueText: { color: "white", fontSize: 16, fontWeight: "600" },
+  titleCenter: { fontSize: 20, fontWeight: "700", color: "#1a1a1a", marginTop: 14 },
+  subtitleCenter: { color: "#86868b", textAlign: "center", marginTop: 8, lineHeight: 20 },
 });
+

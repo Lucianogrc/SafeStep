@@ -1,5 +1,4 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState } from "react";
 import {
   Alert,
@@ -11,11 +10,13 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
+import { signInUser } from "../firebaseActions";
+
 
 interface LoginProps {
   onBack: () => void;
-  onLoginHiker: () => void; // 👈 llamado al login de senderista
-  onLoginCompany: () => void; // 👈 llamado al login de empresa
+  onLoginHiker: () => void;
+  onLoginCompany: () => void;
   onRegister: () => void;
 }
 
@@ -28,52 +29,35 @@ export default function Login({
   const [userType, setUserType] = useState<"hiker" | "company">("hiker");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
+  // --- Inicio de sesión real con Firebase ---
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Por favor ingresa tus credenciales");
+      Alert.alert("Error", "Por favor ingresa tus credenciales.");
       return;
     }
 
-    await AsyncStorage.setItem("userToken", "123abc");
-    await AsyncStorage.setItem("userRole", userType);
+    try {
+      setLoading(true);
+      console.log("🟢 Iniciando sesión con:", email);
+      const uid = await signInUser(email.trim(), password);
 
-    if (userType === "company") onLoginCompany();
-    else onLoginHiker();
+      console.log("✅ Sesión iniciada. UID:", uid);
+
+      // ✅ Según el tipo de usuario, abre el flujo correcto
+      if (userType === "company") onLoginCompany();
+      else onLoginHiker();
+    } catch (err: any) {
+      console.error("❌ Error en login:", err);
+      Alert.alert("No se pudo iniciar sesión", err.message || "Error desconocido");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <View style={styles.container}>
-      <Content
-        {...{
-          onBack,
-          userType,
-          setUserType,
-          email,
-          setEmail,
-          password,
-          setPassword,
-          handleLogin,
-          onRegister,
-        }}
-      />
-    </View>
-  );
-}
-
-function Content({
-  onBack,
-  userType,
-  setUserType,
-  email,
-  setEmail,
-  password,
-  setPassword,
-  handleLogin,
-  onRegister,
-}: any) {
-  return (
-    <View style={styles.inner}>
       {/* Botón atrás */}
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
         <Feather name="arrow-left" size={22} color="#1a1a1a" />
@@ -90,54 +74,55 @@ function Content({
       </Animated.View>
 
       {/* Selector de tipo de usuario */}
-      <Animated.View
-        entering={FadeInUp.duration(400).delay(100)}
-        style={styles.selectorRow}
-      >
-        <TouchableOpacity
-          style={[
-            styles.selectorButton,
-            userType === "hiker" && styles.selectorActiveHiker,
-          ]}
-          onPress={() => setUserType("hiker")}
-        >
-          <Feather
-            name="user"
-            size={18}
-            color={userType === "hiker" ? "#2E8B57" : "#86868b"}
-          />
-          <Text
-            style={[
-              styles.selectorText,
-              { color: userType === "hiker" ? "#2E8B57" : "#86868b" },
-            ]}
-          >
-            Hiker
-          </Text>
-        </TouchableOpacity>
+<Animated.View
+  entering={FadeInUp.duration(400).delay(100)}
+  style={styles.selectorRow}
+>
+  <TouchableOpacity
+    style={[
+      styles.selectorButton,
+      userType === "hiker" && styles.selectorActiveHiker,
+    ]}
+    onPress={() => setUserType("hiker")}
+  >
+    <Feather
+      name="user"
+      size={18}
+      color={userType === "hiker" ? "#2E8B57" : "#86868b"}
+    />
+    <Text
+      style={[
+        styles.selectorText,
+        { color: userType === "hiker" ? "#2E8B57" : "#86868b" },
+      ]}
+    >
+      Hiker
+    </Text>
+  </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.selectorButton,
-            userType === "company" && styles.selectorActiveCompany,
-          ]}
-          onPress={() => setUserType("company")}
-        >
-          <MaterialCommunityIcons
-            name="office-building"
-            size={20}
-            color={userType === "company" ? "#1E90FF" : "#86868b"}
-          />
-          <Text
-            style={[
-              styles.selectorText,
-              { color: userType === "company" ? "#1E90FF" : "#86868b" },
-            ]}
-          >
-            Empresa
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
+  <TouchableOpacity
+    style={[
+      styles.selectorButton,
+      userType === "company" && styles.selectorActiveCompany,
+    ]}
+    onPress={() => setUserType("company")}
+  >
+    <MaterialCommunityIcons
+      name="office-building"
+      size={18}
+      color={userType === "company" ? "#1E90FF" : "#86868b"}
+    />
+    <Text
+      style={[
+        styles.selectorText,
+        { color: userType === "company" ? "#1E90FF" : "#86868b" },
+      ]}
+    >
+      Empresa
+    </Text>
+  </TouchableOpacity>
+</Animated.View>
+
 
       {/* Formulario */}
       <Animated.View
@@ -198,8 +183,11 @@ function Content({
             { backgroundColor: userType === "hiker" ? "#2E8B57" : "#1E90FF" },
           ]}
           onPress={handleLogin}
+          disabled={loading}
         >
-          <Text style={styles.loginText}>Iniciar sesión</Text>
+          <Text style={styles.loginText}>
+            {loading ? "Entrando..." : "Iniciar sesión"}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.registerRow}>
@@ -222,11 +210,6 @@ function Content({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-  inner: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 60,
-  },
   backButton: {
     position: "absolute",
     top: 40,
@@ -236,31 +219,48 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     padding: 8,
   },
-  header: { alignItems: "center", marginTop: 60, marginBottom: 30 },
+  header: { alignItems: "center", marginTop: 100, marginBottom: 30 },
   logo: { width: 70, height: 70, marginBottom: 10, resizeMode: "contain" },
   title: { fontSize: 22, fontWeight: "600", color: "#1a1a1a" },
   subtitle: { fontSize: 14, color: "#86868b", textAlign: "center" },
-  selectorRow: { flexDirection: "row", gap: 12, marginBottom: 25 },
+
+  /** 🔹 Selector actualizado */
+  selectorRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 25,
+    paddingHorizontal: 30, // evita que toquen los bordes del celular
+  },
   selectorButton: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: "#e0e0e0",
+    borderRadius: 14,
+    paddingVertical: 8, // más compacto
+    paddingHorizontal: 20,
+    marginHorizontal: 10, // espacio entre botones
+    backgroundColor: "#fff",
+    width: 180, // tamaño más pequeño
+    elevation: 2,
   },
   selectorActiveHiker: {
     borderColor: "#2E8B57",
-    backgroundColor: "#2E8B5715",
+    backgroundColor: "#E6F4EA",
   },
   selectorActiveCompany: {
     borderColor: "#1E90FF",
-    backgroundColor: "#1E90FF15",
+    backgroundColor: "#E6F0FF",
   },
-  selectorText: { marginLeft: 8, fontWeight: "500" },
-  form: { gap: 16 },
+  selectorText: {
+    marginLeft: 6,
+    fontWeight: "500",
+    fontSize: 14,
+  },
+
+  form: { gap: 16, paddingHorizontal: 20 },
   label: { color: "#1a1a1a", fontSize: 14, marginBottom: 6 },
   inputContainer: {
     flexDirection: "row",
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
   },
   forgot: { fontSize: 13, marginTop: 6, textAlign: "right" },
-  actions: { marginTop: 20 },
+  actions: { marginTop: 20, paddingHorizontal: 20 },
   loginButton: {
     height: 55,
     borderRadius: 16,

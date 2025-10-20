@@ -1,31 +1,62 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import * as MediaLibrary from "expo-media-library";
+import { router } from "expo-router";
+import * as Sharing from "expo-sharing";
+import { getAuth } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Image,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
-import QRCode from "react-native-qrcode-svg"; // ✅ QR real
+import QRCode from "react-native-qrcode-svg";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
-import TabBar from "../../components/ui/TabBar";
+import ViewShot from "react-native-view-shot";
+import { db } from "../firebaseConfig";
 
-interface QRCodeScreenProps {
-  onTabChange: (tab: string) => void;
-}
+// ✅ Tipo explícito para el ref del componente ViewShot
+type CustomViewShotRef = {
+  capture: () => Promise<string>;
+};
 
-export default function QRCodeScreen({ onTabChange }: QRCodeScreenProps) {
+export default function QRCodeScreen() {
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [userName, setUserName] = useState("Cargando...");
+  const [userId, setUserId] = useState("");
+  const [qrValue, setQrValue] = useState("");
   const rotation = useSharedValue(0);
+  const qrRef = useRef<CustomViewShotRef | null>(null);
 
-  // ⚙️ ID único del usuario (puedes obtenerlo de Firebase más adelante)
-  const userId = "HST-2024-001234";
+  // 🔹 Carga los datos del usuario autenticado desde Firestore
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (!currentUser) return;
 
+        const userRef = doc(db, "users", currentUser.uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setUserName(data.fullName || "Usuario");
+          setUserId(data.userId || `HST-${Date.now().toString(36).toUpperCase()}`);
+          setQrValue(data.qrValue || data.userId || currentUser.uid);
+        }
+      } catch (error) {
+        console.error("Error al cargar usuario:", error);
+      }
+    };
+    fetchUserData();
+  }, []);
+
+  // 🔄 Rotación animada al regenerar
   const handleRegenerate = () => {
     setIsRegenerating(true);
     rotation.value = withTiming(rotation.value + 360, { duration: 800 });
@@ -35,12 +66,40 @@ export default function QRCodeScreen({ onTabChange }: QRCodeScreenProps) {
     }, 1500);
   };
 
-  const handleSaveToWallet = () => {
-    Alert.alert("Guardado", "QR guardado en Apple Wallet");
-  };
+  // 💾 Guardar el QR en la galería (simula "Wallet")
+  const handleSaveToWallet = async () => {
+  try {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permiso requerido", "Activa los permisos de galería para guardar tu QR.");
+      return;
+    }
 
-  const handleShare = () => {
-    Alert.alert("Compartir", "Compartiendo código QR...");
+    if (qrRef.current) {
+      const uri = await qrRef.current.capture();
+      const asset = await MediaLibrary.createAssetAsync(uri);
+      await MediaLibrary.createAlbumAsync("SafeStepQRs", asset, false);
+      Alert.alert("Guardado", "Tu código QR se guardó en la galería 📸");
+    }
+  } catch (err) {
+    Alert.alert("Error", "No se pudo guardar el QR 😢");
+    console.error(err);
+  }
+};
+
+  // 📤 Compartir el QR por WhatsApp o cualquier app
+  const handleShare = async () => {
+    try {
+      if (qrRef.current) {
+        const uri = await qrRef.current.capture();
+        await Sharing.shareAsync(uri, {
+          dialogTitle: "Compartir tu código QR SafeStep",
+        });
+      }
+    } catch (err) {
+      Alert.alert("Error", "No se pudo compartir el QR 😢");
+      console.error(err);
+    }
   };
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -49,47 +108,62 @@ export default function QRCodeScreen({ onTabChange }: QRCodeScreenProps) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* HEADER */}
       <LinearGradient colors={["#fff", "#f5f5f7"]} style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.logoRow}>
-            <Image
-              source={require("../../assets/images/logo2.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.push("/(tabs)");
+            }}
+          >
+            <Ionicons name="arrow-back" size={22} color="#1a1a1a" />
+          </TouchableOpacity>
+
+          <View style={styles.headerContent}>
+            <Ionicons name="location-outline" size={20} color="#2E8B57" />
             <Text style={styles.title}>Mi Código QR</Text>
           </View>
-          <Text style={styles.userId}>ID: {userId}</Text>
+
+          <View style={{ width: 30 }} />
         </View>
+
+        <Text style={styles.userId}>ID: {userId || "Cargando..."}</Text>
       </LinearGradient>
 
-      {/* Content */}
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+      {/* CONTENT */}
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 60 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.content}>
-          {/* QR Code Card */}
+          {/* QR CARD */}
           <View style={styles.card}>
             <Animated.View style={[styles.qrWrapper, animatedStyle]}>
-              <View style={styles.qrBox}>
-                {/* ✅ QR real escaneable */}
-                <QRCode
-                  value={`https://safestep.app/user/${userId}`} // puedes usar el ID o una URL real
-                  size={200}
-                  color="#1a1a1a"
-                  backgroundColor="#fff"
-                  logoSize={50}
-                  logoBackgroundColor="transparent"
-                />
-              </View>
+              <ViewShot ref={qrRef} options={{ format: "png", quality: 1.0 }}>
+                <View style={styles.qrBox}>
+                  {qrValue ? (
+                    <QRCode
+                      value={`https://safestep.app/user/${qrValue}`}
+                      size={200}
+                      color="#1a1a1a"
+                      backgroundColor="#fff"
+                    />
+                  ) : (
+                    <ActivityIndicator color="#2E8B57" size="large" />
+                  )}
+                </View>
+              </ViewShot>
             </Animated.View>
 
             <View style={styles.qrTextBlock}>
-              <Text style={styles.userName}>Juan Pérez García</Text>
+              <Text style={styles.userName}>{userName}</Text>
               <Text style={styles.userRole}>Hiker SafeStep</Text>
             </View>
           </View>
 
-          {/* Instructions */}
+          {/* INSTRUCTIONS */}
           <View style={styles.instructionsCard}>
             <View style={styles.instructionsRow}>
               <View style={styles.iconCircle}>
@@ -118,38 +192,36 @@ export default function QRCodeScreen({ onTabChange }: QRCodeScreenProps) {
             </View>
           </View>
 
-          {/* Action Buttons */}
-          <View style={{ marginTop: 10 }}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: "#fff", borderColor: "#2E8B5720" }]}
-              onPress={handleRegenerate}
-              disabled={isRegenerating}
-              activeOpacity={0.9}
-            >
-              {isRegenerating ? (
-                <ActivityIndicator color="#2E8B57" />
-              ) : (
-                <>
-                  <Ionicons name="refresh" size={18} color="#2E8B57" style={{ marginRight: 6 }} />
-                  <Text style={styles.actionText}>Actualizar código</Text>
-                </>
-              )}
+          {/* ACTION BUTTONS */}
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: "#fff", borderColor: "#2E8B5720" }]}
+            onPress={handleRegenerate}
+            disabled={isRegenerating}
+            activeOpacity={0.9}
+          >
+            {isRegenerating ? (
+              <ActivityIndicator color="#2E8B57" />
+            ) : (
+              <>
+                <Ionicons name="refresh" size={18} color="#2E8B57" style={{ marginRight: 6 }} />
+                <Text style={styles.actionText}>Actualizar código</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleSaveToWallet}>
+              <Ionicons name="wallet-outline" size={18} color="#1a1a1a" style={{ marginRight: 6 }} />
+              <Text style={styles.secondaryText}>Wallet</Text>
             </TouchableOpacity>
 
-            <View style={styles.row}>
-              <TouchableOpacity style={[styles.secondaryButton]} onPress={handleSaveToWallet}>
-                <Ionicons name="wallet-outline" size={18} color="#1a1a1a" style={{ marginRight: 6 }} />
-                <Text style={styles.secondaryText}>Wallet</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={[styles.secondaryButton]} onPress={handleShare}>
-                <Ionicons name="share-outline" size={18} color="#1a1a1a" style={{ marginRight: 6 }} />
-                <Text style={styles.secondaryText}>Compartir</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleShare}>
+              <Ionicons name="share-outline" size={18} color="#1a1a1a" style={{ marginRight: 6 }} />
+              <Text style={styles.secondaryText}>Compartir</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Security Note */}
+          {/* SECURITY NOTE */}
           <View style={styles.securityCard}>
             <Text style={styles.securityText}>
               🔒 Tu información personal está protegida. Solo las empresas autorizadas pueden acceder
@@ -158,10 +230,6 @@ export default function QRCodeScreen({ onTabChange }: QRCodeScreenProps) {
           </View>
         </View>
       </ScrollView>
-
-      {/* TabBar */}
-      <TabBar activeTab="qr" onTabChange={onTabChange} variant="hiker" />
-
     </View>
   );
 }
@@ -175,12 +243,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: "#eee",
   },
-  headerContent: { alignItems: "center" },
-  logoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logo: { width: 32, height: 32 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  backButton: {
+    backgroundColor: "#f5f5f7",
+    padding: 8,
+    borderRadius: 50,
+  },
+  headerContent: { flexDirection: "row", alignItems: "center", gap: 6 },
   title: { fontSize: 18, fontWeight: "600", color: "#1a1a1a" },
-  userId: { color: "#86868b", fontSize: 13, marginTop: 4 },
-
+  userId: { textAlign: "center", color: "#86868b", fontSize: 13, marginTop: 8 },
   content: { paddingHorizontal: 20, marginTop: 20 },
   card: {
     backgroundColor: "#fff",
@@ -205,7 +281,6 @@ const styles = StyleSheet.create({
   qrTextBlock: { alignItems: "center", marginTop: 12 },
   userName: { color: "#1a1a1a", fontWeight: "600", fontSize: 16 },
   userRole: { color: "#86868b", fontSize: 13 },
-
   instructionsCard: {
     backgroundColor: "#2E8B5710",
     borderColor: "#2E8B5720",
@@ -226,7 +301,6 @@ const styles = StyleSheet.create({
   instructionsTitle: { color: "#1a1a1a", fontWeight: "600", fontSize: 15 },
   instructionsItem: { flexDirection: "row", alignItems: "center", marginTop: 4 },
   instructionsText: { color: "#86868b", fontSize: 13, flex: 1 },
-
   actionButton: {
     borderWidth: 1,
     borderRadius: 16,
@@ -250,7 +324,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   secondaryText: { color: "#1a1a1a", fontWeight: "500" },
-
   securityCard: {
     backgroundColor: "#f5f5f7",
     borderRadius: 16,

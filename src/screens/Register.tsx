@@ -1,15 +1,17 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo, useState } from "react";
 import {
-  Platform,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
+import { registerHiker } from "../firebaseActions";
 
 type StepType = "email" | "password" | "text" | "number" | "tel" | "select" | "consent";
 
@@ -54,12 +56,12 @@ const steps: StepDef[] = [
 ];
 
 export default function Register({ onBack, onComplete }: RegisterProps) {
+  const navigation = useNavigation<any>();
   const [currentStep, setCurrentStep] = useState(0);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -78,7 +80,38 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
   const step = steps[currentStep];
   const progress = useMemo(() => ((currentStep + 1) / steps.length) * 100, [currentStep]);
 
-  // --- Validaciones básicas ---
+  const updateField = (val: string | boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      [step.id]: val ?? "",
+    }));
+  };
+
+  const handleFinish = async () => {
+    try {
+      console.log("📦 Enviando datos a Firebase:", formData);
+
+      // 🟢 Validación básica
+      if (!formData.email || !formData.password || !formData.name) {
+        Alert.alert("Error", "Por favor completa todos los campos obligatorios");
+        return;
+      }
+
+      // 🔹 Registra al nuevo usuario en Firebase
+      await registerHiker({ ...formData, onComplete });
+
+      console.log("✅ Usuario registrado correctamente en Firestore");
+    } catch (err: any) {
+      console.log("❌ Error en handleFinish:", err);
+      if (err.code === "auth/email-already-in-use") {
+        Alert.alert("Error", "Este correo ya está en uso. Inicia sesión o usa otro correo.");
+      } else {
+        Alert.alert("Error", err.message || "No se pudo crear la cuenta. Intenta nuevamente.");
+      }
+    }
+  };
+
+  // ✅ Validaciones
   const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const validatePassword = (password: string) => password.length >= 8;
 
@@ -89,20 +122,14 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
     if (id === "email") {
       if (!value) return setError("email", "El correo electrónico es obligatorio"), false;
       if (!validateEmail(String(value))) return setError("email", "Formato de correo inválido"), false;
-      clearError();
-      return true;
     }
     if (id === "password") {
       if (!value) return setError("password", "La contraseña es obligatoria"), false;
       if (!validatePassword(String(value))) return setError("password", "Mínimo 8 caracteres"), false;
-      clearError();
-      return true;
     }
     if (id === "confirmPassword") {
       if (!value) return setError("confirmPassword", "Confirma tu contraseña"), false;
       if (value !== formData.password) return setError("confirmPassword", "Las contraseñas no coinciden"), false;
-      clearError();
-      return true;
     }
     clearError();
     return true;
@@ -111,29 +138,23 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
   const setError = (k: string, msg: string) => setErrors({ [k]: msg });
   const clearError = () => setErrors({});
 
-  // --- UI helpers ---
-  const updateField = (val: string | boolean) => {
-    const id = step.id as keyof typeof formData;
-    setFormData((p) => ({ ...p, [id]: val }));
-    clearError();
-  };
   const currentValue = formData[step.id as keyof typeof formData];
   const isOptional = step.optional;
   const canContinue = isOptional || (step.type === "consent" ? formData.consent : !!currentValue);
 
-  // --- Navegación ---
   const handleNext = () => {
     if (!validateCurrentStep()) return;
     if (currentStep < steps.length - 1) setCurrentStep((s) => s + 1);
     else setShowConfirmation(true);
   };
-  const handleBack = () => {
+
+  const handleBackStep = () => {
     clearError();
     if (currentStep > 0) setCurrentStep((s) => s - 1);
     else onBack();
   };
 
-  // --- Pantalla de confirmación (sin animaciones) ---
+  // ✅ Pantalla final
   if (showConfirmation) {
     return (
       <LinearGradient colors={["#FFFFFF", "#F5F5F7"]} style={styles.container}>
@@ -151,7 +172,7 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
             Ahora puedes generar tu código QR SafeStep y comenzar a explorar de forma segura.
           </Text>
 
-          <TouchableOpacity style={styles.primaryBtn} onPress={onComplete}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleFinish}>
             <Ionicons name="qr-code" size={20} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.primaryBtnText}>Generar mi QR</Text>
           </TouchableOpacity>
@@ -164,34 +185,30 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
     );
   }
 
+  // ✅ Formulario paso a paso
   return (
     <LinearGradient colors={["#FFFFFF", "#F5F5F7"]} style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
+        <TouchableOpacity onPress={handleBackStep} style={styles.iconBtn}>
           <Feather name="arrow-left" size={22} color="#1a1a1a" />
         </TouchableOpacity>
-        <Text style={styles.stepText}>
-          {currentStep + 1} de {steps.length}
-        </Text>
+        <Text style={styles.stepText}>{currentStep + 1} de {steps.length}</Text>
       </View>
 
-      {/* Progress */}
       <View style={styles.progressBarWrap}>
         <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollBody} keyboardShouldPersistTaps="handled">
-        {/* Icono y título */}
         <View style={styles.stepIcon}>
           <Feather name={step.icon} size={26} color="#2E8B57" />
         </View>
         <Text style={styles.title}>{step.title}</Text>
         {isOptional && <Text style={styles.optional}>Opcional - Puedes omitir este paso</Text>}
 
-        {/* Campo según tipo */}
+        {/* --- Campos dinámicos --- */}
         <View style={{ marginTop: 14 }}>
-          {/* Email */}
+          {/* EMAIL */}
           {step.id === "email" && (
             <>
               <View style={styles.inputWrap}>
@@ -209,7 +226,7 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
             </>
           )}
 
-          {/* Password */}
+          {/* PASSWORD */}
           {step.id === "password" && (
             <>
               <View style={styles.inputWrap}>
@@ -222,7 +239,10 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
                   autoCapitalize="none"
                   style={styles.input}
                 />
-                <TouchableOpacity style={styles.inputRightIcon} onPress={() => setShowPassword((v) => !v)}>
+                <TouchableOpacity
+                  style={styles.inputRightIcon}
+                  onPress={() => setShowPassword((v) => !v)}
+                >
                   <Feather name={showPassword ? "eye-off" : "eye"} size={18} color="#86868b" />
                 </TouchableOpacity>
               </View>
@@ -231,7 +251,7 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
             </>
           )}
 
-          {/* Confirm Password */}
+          {/* CONFIRM PASSWORD */}
           {step.id === "confirmPassword" && (
             <>
               <View style={styles.inputWrap}>
@@ -255,7 +275,7 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
             </>
           )}
 
-          {/* Select (Tipo de sangre) */}
+          {/* SELECT (TIPO DE SANGRE) */}
           {step.type === "select" && step.id === "blood" && (
             <View style={styles.bloodGrid}>
               {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((type) => {
@@ -269,21 +289,27 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
                       active && { borderColor: "#2E8B57", backgroundColor: "#2E8B5715" },
                     ]}
                   >
-                    <Text style={[styles.bloodText, active && { color: "#2E8B57", fontWeight: "700" }]}>{type}</Text>
+                    <Text
+                      style={[
+                        styles.bloodText,
+                        active && { color: "#2E8B57", fontWeight: "700" },
+                      ]}
+                    >
+                      {type}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
           )}
 
-          {/* Consent */}
+          {/* CONSENTIMIENTO */}
           {step.type === "consent" && (
             <View style={{ gap: 12 }}>
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Compartir información de seguridad</Text>
                 <Text style={styles.cardText}>
-                  Al aceptar, autorizas a SafeStep a compartir tu información médica y de contacto con empresas
-                  administradoras de parques naturales.
+                  Al aceptar, autorizas a SafeStep a compartir tu información médica y de contacto con administradores de parques naturales.
                 </Text>
                 <Text style={styles.cardBullet}>• Nombre completo y edad</Text>
                 <Text style={styles.cardBullet}>• Tipo de sangre y alergias</Text>
@@ -311,7 +337,7 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
             </View>
           )}
 
-          {/* Otros campos de texto/num/tel */}
+          {/* CAMPOS GENERALES */}
           {!["email", "password", "confirmPassword"].includes(step.id) &&
             step.type !== "select" &&
             step.type !== "consent" && (
@@ -336,21 +362,18 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
                     : ""
                 }
                 keyboardType={
-                  step.type === "number" ? "number-pad" : step.type === "tel" ? "phone-pad" : "default"
+                  step.type === "number"
+                    ? "number-pad"
+                    : step.type === "tel"
+                    ? "phone-pad"
+                    : "default"
                 }
                 style={styles.input}
               />
             )}
-
-          {/* Hints contextuales */}
-          {step.id === "allergies" && <Text style={styles.hint}>Esta información es crucial en emergencias.</Text>}
-          {step.id === "emergency" && (
-            <Text style={styles.hint}>Número de un familiar o amigo para contacto de emergencia.</Text>
-          )}
-          {step.id === "age" && <Text style={styles.hint}>Debes ser mayor de 16 años para registrarte.</Text>}
         </View>
 
-        {/* Botones */}
+        {/* BOTONES */}
         <View style={{ height: 22 }} />
         <TouchableOpacity
           disabled={!canContinue}
@@ -375,8 +398,6 @@ export default function Register({ onBack, onComplete }: RegisterProps) {
             <Text style={styles.skipText}>Omitir este paso</Text>
           </TouchableOpacity>
         )}
-
-        <View style={{ height: Platform.select({ ios: 24, android: 24, default: 12 }) }} />
       </ScrollView>
     </LinearGradient>
   );
@@ -391,11 +412,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  errorText: {
-    color: "red",
-    fontSize: 12,
-    marginTop: 4,
-  },
+  errorText: { color: "red", fontSize: 12, marginTop: 4 },
   iconBtn: { padding: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.05)" },
   stepText: { color: "#86868b" },
   progressBarWrap: {
@@ -403,10 +420,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#e6e6ea",
     borderRadius: 2,
     marginTop: 10,
-    marginHorizontal: 0,
   },
   progressBarFill: { height: 4, backgroundColor: "#2E8B57", borderRadius: 2 },
-
   scrollBody: { paddingTop: 22, paddingHorizontal: 20, paddingBottom: 10 },
   stepIcon: {
     alignSelf: "flex-start",
@@ -417,7 +432,6 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 20, fontWeight: "700", color: "#1a1a1a" },
   optional: { color: "#86868b", marginTop: 6 },
-
   inputWrap: { position: "relative", justifyContent: "center" },
   input: {
     backgroundColor: "#f5f5f7",
@@ -429,7 +443,6 @@ const styles = StyleSheet.create({
   },
   inputLeftIcon: { position: "absolute", left: 14, zIndex: 1 },
   inputRightIcon: { position: "absolute", right: 14, zIndex: 1 },
-
   bloodGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -447,12 +460,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bloodText: { color: "#555" },
-
   card: { backgroundColor: "#f5f5f7", borderRadius: 16, padding: 14 },
   cardTitle: { color: "#1a1a1a", fontWeight: "700", marginBottom: 6 },
   cardText: { color: "#86868b", marginBottom: 8, lineHeight: 18 },
   cardBullet: { color: "#86868b", fontSize: 12, marginBottom: 2 },
-
   consentRow: {
     borderWidth: 1.5,
     borderColor: "#ddd",
@@ -463,7 +474,6 @@ const styles = StyleSheet.create({
   },
   consentTitle: { color: "#1a1a1a", fontWeight: "600" },
   consentText: { color: "#86868b", fontSize: 12 },
-
   primaryBtn: {
     marginTop: 10,
     backgroundColor: "#2E8B57",
@@ -476,9 +486,7 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   skipText: { textAlign: "center", color: "#86868b" },
-
   hint: { color: "#86868b", marginTop: 8, fontSize: 12 },
-
   centered: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
   bigIcon: {
     width: 112,
