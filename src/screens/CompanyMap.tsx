@@ -2,17 +2,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import MapView, { MapPressEvent, Marker } from "react-native-maps";
 import TabBar from "../../components/ui/TabBar";
-import { auth, db } from "../firebaseConfig";
+import { auth, db } from "../Services/firebaseConfig";
 
 interface CompanyMapProps {
   onTabChange: (tab: string) => void;

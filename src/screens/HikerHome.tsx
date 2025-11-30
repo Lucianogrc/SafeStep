@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { auth, db } from "../firebaseConfig";
+import { auth, db } from "../Services/firebaseConfig";
 
 interface HikerHomeProps {
   onNavigate: (screen: string) => void;

@@ -24,7 +24,7 @@ import Welcome from "../../src/screens/Welcome";
 
 // Firebase
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../../src/firebaseConfig";
+import { auth } from "../../src/Services/firebaseConfig";
 
 // 🌐 Contexto de Autenticación
 interface AuthContextProps {

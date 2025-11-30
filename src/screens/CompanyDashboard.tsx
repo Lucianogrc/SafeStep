@@ -20,7 +20,7 @@ import {
   View,
 } from "react-native";
 import TabBar from "../../components/ui/TabBar";
-import { auth, db } from "../firebaseConfig";
+import { auth, db } from "../Services/firebaseConfig";
 
 interface CompanyDashboardProps {
   onNavigate: (screen: string) => void;

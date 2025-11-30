@@ -3,17 +3,17 @@ import * as Location from "expo-location";
 import { collection, getDocs } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Linking,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Linking,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
 import TabBar from "../../components/ui/TabBar";
-import { db } from "../firebaseConfig";
+import { db } from "../Services/firebaseConfig";
 
 interface CompanyData {
   id: string;

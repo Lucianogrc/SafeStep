@@ -10,8 +10,7 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
-import { signInUser } from "../firebaseActions";
-
+import { signInUser } from "../Services/firebaseActions";
 
 interface LoginProps {
   onBack: () => void;
