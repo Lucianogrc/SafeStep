@@ -2,13 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import MapView, { MapPressEvent, Marker } from "react-native-maps";
 import TabBar from "../../components/ui/TabBar";
@@ -120,6 +120,7 @@ export default function CompanyMap({ onTabChange }: CompanyMapProps) {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           {companyLocation && (
             <TouchableOpacity
+              testID="btn-delete"
               onPress={deleteCompanyLocation}
               style={[styles.editBtn, { backgroundColor: "#FF3B3015" }]}
             >
@@ -128,6 +129,7 @@ export default function CompanyMap({ onTabChange }: CompanyMapProps) {
             </TouchableOpacity>
           )}
           <TouchableOpacity
+            testID="btn-toggle-edit"
             onPress={() => setIsEditing(!isEditing)}
             style={[styles.editBtn, isEditing && { backgroundColor: "#1E90FF20" }]}
           >
@@ -156,6 +158,7 @@ export default function CompanyMap({ onTabChange }: CompanyMapProps) {
       >
         {companyLocation && (
           <Marker
+            testID="marker-company"
             coordinate={companyLocation}
             title={companyName || "Tu empresa"}
             description="Ubicación registrada"
@@ -185,6 +188,7 @@ export default function CompanyMap({ onTabChange }: CompanyMapProps) {
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>Nombre de la Empresa</Text>
             <TextInput
+              testID="input-company-name"
               placeholder="Ej. Café Hulum"
               placeholderTextColor="#aaa"
               value={companyName}
@@ -193,6 +197,7 @@ export default function CompanyMap({ onTabChange }: CompanyMapProps) {
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
+                testID="btn-cancel"
                 style={[styles.btn, { backgroundColor: "#ccc" }]}
                 onPress={() => {
                   setShowNameModal(false);
@@ -202,6 +207,7 @@ export default function CompanyMap({ onTabChange }: CompanyMapProps) {
                 <Text style={styles.btnText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                testID="btn-save"
                 style={[styles.btn, { backgroundColor: "#1E90FF" }]}
                 onPress={saveCompanyData}
               >
@@ -250,7 +256,6 @@ const styles = StyleSheet.create({
     borderColor: "#eee",
   },
   infoText: { color: "#86868b", textAlign: "center", fontSize: 13 },
-  // Modal styles
   modalContainer: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",

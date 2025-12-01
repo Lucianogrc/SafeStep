@@ -3,13 +3,13 @@ import * as Location from "expo-location";
 import { collection, getDocs } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Linking,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Linking,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
 import TabBar from "../../components/ui/TabBar";
@@ -55,7 +55,7 @@ export default function Places({ onTabChange, onNavigateToDetail }: PlacesProps)
     })();
   }, []);
 
-  // 🏢 Cargar empresas desde Firestore (companiesLocations)
+  // 🏢 Cargar empresas desde Firestore
   useEffect(() => {
     const fetchPlaces = async () => {
       try {
@@ -89,7 +89,7 @@ export default function Places({ onTabChange, onNavigateToDetail }: PlacesProps)
     Linking.openURL(url);
   };
 
-  // 🕐 Mostrar loader mientras carga
+  // 🕐 Mostrar loader
   if (loading || !location) {
     return (
       <View style={styles.centered}>
@@ -105,10 +105,10 @@ export default function Places({ onTabChange, onNavigateToDetail }: PlacesProps)
         <View style={styles.headerTop}>
           <Text style={styles.title}>Lugares</Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <TouchableOpacity style={styles.iconBtn}>
+            <TouchableOpacity testID="btn-filter" style={styles.iconBtn}>
               <Ionicons name="filter-outline" size={20} color="#1a1a1a" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn}>
+            <TouchableOpacity testID="btn-list" style={styles.iconBtn}>
               <Ionicons name="list-outline" size={20} color="#1a1a1a" />
             </TouchableOpacity>
           </View>
@@ -122,6 +122,7 @@ export default function Places({ onTabChange, onNavigateToDetail }: PlacesProps)
             style={{ marginRight: 6 }}
           />
           <TextInput
+            testID="input-search"
             placeholder="Buscar empresas..."
             placeholderTextColor="#86868b"
             style={styles.searchInput}
@@ -138,10 +139,12 @@ export default function Places({ onTabChange, onNavigateToDetail }: PlacesProps)
         showsUserLocation
         showsMyLocationButton
         onPress={() => setSelectedPlace(null)}
+        testID="map-view"
       >
         {filteredPlaces.map((place) => (
           <Marker
             key={place.id}
+            testID={`marker-${place.id}`}
             coordinate={{
               latitude: place.latitude,
               longitude: place.longitude,
@@ -154,9 +157,9 @@ export default function Places({ onTabChange, onNavigateToDetail }: PlacesProps)
         ))}
       </MapView>
 
-      {/* CARD FLOTANTE AL SELECCIONAR */}
+      {/* CARD FLOTANTE */}
       {selectedPlace && (
-        <View style={styles.bottomCard}>
+        <View testID="place-bottom-card" style={styles.bottomCard}>
           <View style={styles.cardHeader}>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{selectedPlace.companyName}</Text>
@@ -164,6 +167,7 @@ export default function Places({ onTabChange, onNavigateToDetail }: PlacesProps)
             </View>
 
             <TouchableOpacity
+              testID="btn-close-card"
               style={styles.closeBtn}
               onPress={() => setSelectedPlace(null)}
             >
@@ -173,13 +177,15 @@ export default function Places({ onTabChange, onNavigateToDetail }: PlacesProps)
 
           <View style={styles.btnRow}>
             <TouchableOpacity
+              testID="btn-place-detail"
               style={styles.primaryBtn}
               onPress={() => onNavigateToDetail(selectedPlace.id)}
             >
-              <Text style={styles.primaryBtnText}>Más información</Text>
+              <Text style={styles.primaryBtnText}>Ver info</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
+              testID="btn-open-maps"
               style={styles.secondaryBtn}
               onPress={() =>
                 openGoogleMaps(
@@ -203,7 +209,7 @@ export default function Places({ onTabChange, onNavigateToDetail }: PlacesProps)
 
       {/* Mensaje si no hay empresas */}
       {!loading && places.length === 0 && (
-        <View style={styles.noPlacesBox}>
+        <View testID="no-places-box" style={styles.noPlacesBox}>
           <Text style={styles.noPlacesText}>
             Aún no hay empresas registradas en el mapa.
           </Text>

@@ -1,0 +1,15 @@
+appId: com.tuempresa.safestep
+name: Smoke - CompanyMap modal
+---
+- launchApp
+- tapOn:
+    id: "btn-toggle-edit"
+- assertVisible: "Ubicación de la Empresa"
+- tapOn:
+    text: "Marcar ubicación" # si tienes un botón visible o usa id
+- inputText:
+    id: "input-company-name"
+    text: "Parque La Primavera"
+- tapOn:
+    id: "btn-save"
+- assertVisible: "Ubicación registrada correctamente."

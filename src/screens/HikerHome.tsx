@@ -108,6 +108,7 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
       >
         <View style={styles.content}>
           {/* 🔗 SafeBrazalet */}
+          {/*
           <Animated.View entering={FadeInDown.duration(400)}>
             <TouchableOpacity
               style={[
@@ -187,7 +188,7 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
               )}
             </TouchableOpacity>
           </Animated.View>
-
+*/}
           {/* 🚨 SOS */}
           <Animated.View entering={FadeInDown.delay(150).duration(400)}>
             <TouchableOpacity

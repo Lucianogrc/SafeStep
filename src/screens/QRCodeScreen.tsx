@@ -7,13 +7,13 @@ import { getAuth } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
@@ -47,7 +47,8 @@ export default function QRCodeScreen() {
           const data = snap.data();
           setUserName(data.fullName || "Usuario");
           setUserId(data.userId || `HST-${Date.now().toString(36).toUpperCase()}`);
-          setQrValue(data.qrValue || data.userId || currentUser.uid);
+          setQrValue(currentUser.uid);
+
         }
       } catch (error) {
         console.error("Error al cargar usuario:", error);
@@ -145,11 +146,12 @@ export default function QRCodeScreen() {
                 <View style={styles.qrBox}>
                   {qrValue ? (
                     <QRCode
-                      value={`https://safestep.app/user/${qrValue}`}
+                      value={qrValue} 
                       size={200}
                       color="#1a1a1a"
                       backgroundColor="#fff"
                     />
+
                   ) : (
                     <ActivityIndicator color="#2E8B57" size="large" />
                   )}
