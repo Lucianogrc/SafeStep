@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import MapView, { MapPressEvent, Marker } from "react-native-maps";
 import TabBar from "../../components/ui/TabBar";
-import { auth, db } from "../firebaseConfig";
+import { auth, db } from "../Services/firebaseConfig";
 
 interface CompanyMapProps {
   onTabChange: (tab: string) => void;

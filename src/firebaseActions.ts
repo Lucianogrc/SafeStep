@@ -11,7 +11,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { Alert } from "react-native";
-import { auth, db } from "./firebaseConfig";
+import { auth, db } from "../firebaseConfig";
 
 // 🟢 Tipado de los datos del formulario de registro
 interface HikerFormData {

@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
 import TabBar from "../../components/ui/TabBar";
-import { db } from "../firebaseConfig";
+import { db } from "../Services/firebaseConfig";
 
 interface CompanyData {
   id: string;

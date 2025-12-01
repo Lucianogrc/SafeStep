@@ -1,18 +1,11 @@
+// src/screens/CompanyDashboard.tsx
+
 import { Ionicons } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  onSnapshot,
-  serverTimestamp,
-} from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,25 +13,24 @@ import {
   View,
 } from "react-native";
 import TabBar from "../../components/ui/TabBar";
-import { auth, db } from "../firebaseConfig";
+import { auth, db } from "../Services/firebaseConfig";
 
 interface CompanyDashboardProps {
   onNavigate: (screen: string) => void;
   onTabChange?: (tab: string) => void;
   onLogout: () => void;
+  onOpenHiker?: (hiker: any) => void; // 👈 nuevo
 }
 
 export default function CompanyDashboard({
   onNavigate,
   onTabChange,
-  onLogout,
+  onLogout, // (por si luego lo usas en un botón del header)
+  onOpenHiker,
 }: CompanyDashboardProps) {
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showScanner, setShowScanner] = useState(false);
-  const [scanned, setScanned] = useState(false);
-  const [permission, requestPermission] = useCameraPermissions();
-  const [activeVisitors, setActiveVisitors] = useState<any[]>([]);
+  const [activeHikers, setActiveHikers] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
 
   // 🔹 Obtener nombre de empresa
@@ -51,9 +43,11 @@ export default function CompanyDashboard({
         const ref = doc(db, "companies", user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          const data = snap.data();
+          const data = snap.data() as any;
           setCompanyName(data.companyName || "Empresa");
-        } else setCompanyName("Empresa");
+        } else {
+          setCompanyName("Empresa");
+        }
       } catch (err) {
         console.log("❌ Error al obtener datos de empresa:", err);
         setCompanyName("Empresa");
@@ -65,66 +59,26 @@ export default function CompanyDashboard({
     fetchCompanyData();
   }, []);
 
-  // 🔹 Leer visitantes en tiempo real
+  // 🔹 Leer hikers activos en tiempo real
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
 
-    const visitorsRef = collection(db, "companies", user.uid, "visitors");
-    const unsub = onSnapshot(visitorsRef, (snap) => {
+    const ref = collection(db, "companies", user.uid, "activeHikers");
+    const unsub = onSnapshot(ref, (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setActiveVisitors(list);
+      console.log("[DASHBOARD] activeHikers snapshot:", list);
+      setActiveHikers(list as any[]);
     });
 
     return unsub;
   }, []);
 
-  // 🔹 Escanear QR real
-  const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (scanned) return;
-    setScanned(true);
-    setShowScanner(false);
-
-    try {
-      const userRef = doc(db, "users", data);
-      const snap = await getDoc(userRef);
-
-      if (snap.exists()) {
-        const userData = snap.data();
-        const newVisitor = {
-          uid: data,
-          name: userData.fullName || "Visitante",
-          blood: userData.bloodType || "N/A",
-          status: "Activo",
-          checkIn: serverTimestamp(),
-        };
-
-        await addDoc(
-          collection(db, "companies", auth.currentUser!.uid, "visitors"),
-          newVisitor
-        );
-      } else {
-        alert("⚠️ QR no válido o usuario no encontrado");
-      }
-    } catch (err) {
-      console.log("❌ Error al registrar visitante:", err);
-      alert("Error al registrar el visitante.");
-    } finally {
-      setScanned(false);
-    }
-  };
-
+  // 🔹 Estadísticas (simplificadas)
   const stats = {
-    today: activeVisitors.filter((v) => {
-      const today = new Date().toDateString();
-      const d = v.checkIn?.toDate?.() || new Date(v.checkIn);
-      return d.toDateString() === today;
-    }).length,
-    active: activeVisitors.filter((v) => v.status === "Activo").length,
-    week: activeVisitors.filter((v) => {
-      const d = v.checkIn?.toDate?.() || new Date(v.checkIn);
-      return (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24) < 7;
-    }).length,
+    today: activeHikers.length,
+    active: activeHikers.filter((v) => v.status === "activo").length,
+    week: activeHikers.length,
   };
 
   return (
@@ -184,32 +138,42 @@ export default function CompanyDashboard({
         contentContainerStyle={{ paddingBottom: 110 }}
       >
         <View style={styles.content}>
+          {/* 🔹 Botón que abre la pantalla de escaneo */}
           <TouchableOpacity
             style={styles.scanButton}
-            onPress={() => setShowScanner(true)}
+            onPress={() => onNavigate("company-scan-qr")}
             activeOpacity={0.9}
           >
             <Ionicons name="qr-code-outline" size={22} color="#fff" />
-            <Text style={styles.scanText}>Abrir escáner QR</Text>
+            <Text style={styles.scanText}>Escanear código QR</Text>
           </TouchableOpacity>
 
-          {activeVisitors.length === 0 ? (
+          {activeHikers.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons
                 name="information-circle-outline"
                 size={48}
                 color="#1E90FF"
               />
-              <Text style={styles.emptyTitle}>Aún no hay visitantes</Text>
+              <Text style={styles.emptyTitle}>Aún no hay visitantes activos</Text>
               <Text style={styles.emptyText}>
-                Escanea el QR de un visitante para registrar su ingreso.
+                Escanea el QR de un visitante para registrarlo como activo en tu
+                parque.
               </Text>
             </View>
           ) : (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Visitantes activos</Text>
-              {activeVisitors.map((v, i) => (
-                <View key={i} style={styles.visitorCard}>
+              <Text style={styles.sectionTitle}>Hikers activos</Text>
+              {activeHikers.map((v, i) => (
+                <TouchableOpacity
+                  key={v.id ?? i}
+                  style={styles.visitorCard}
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    console.log("[DASHBOARD] Click en hiker:", v);
+                    onOpenHiker && onOpenHiker(v);
+                  }}
+                >
                   <Ionicons
                     name="person-outline"
                     size={22}
@@ -219,52 +183,27 @@ export default function CompanyDashboard({
                   <View style={{ flex: 1 }}>
                     <Text style={styles.visitorName}>{v.name}</Text>
                     <Text style={styles.visitorInfo}>
-                      {v.blood} •{" "}
-                      {v.checkIn?.toDate
-                        ? v.checkIn.toDate().toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
+                      {v.blood || "N/A"}{" "}
+                      {v.checkInAt?.toDate
+                        ? "• " +
+                          v.checkInAt
+                            .toDate()
+                            .toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
                         : ""}
                     </Text>
                   </View>
-                  <Text style={styles.visitorStatus}>Activo</Text>
-                </View>
+                  <Text style={styles.visitorStatus}>
+                    {(v.status || "activo").toString()}
+                  </Text>
+                </TouchableOpacity>
               ))}
             </View>
           )}
         </View>
       </ScrollView>
-
-      {/* SCANNER MODAL */}
-      <Modal visible={showScanner} animationType="slide">
-        <View style={{ flex: 1, backgroundColor: "#000" }}>
-          {permission?.granted ? (
-            <CameraView
-              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-              style={{ flex: 1 }}
-            />
-          ) : (
-            <View style={styles.permissionContainer}>
-              <Text style={{ color: "#fff", fontSize: 16, textAlign: "center" }}>
-                Necesitamos acceso a la cámara para escanear códigos QR.
-              </Text>
-              <TouchableOpacity
-                style={styles.permissionBtn}
-                onPress={requestPermission}
-              >
-                <Text style={styles.permissionText}>Dar permiso</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={() => setShowScanner(false)}
-          >
-            <Ionicons name="close" size={30} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </Modal>
 
       <TabBar
         activeTab="home"
@@ -278,7 +217,11 @@ export default function CompanyDashboard({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f7" },
   header: { paddingTop: 60, paddingBottom: 30, paddingHorizontal: 20 },
-  headerTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   companyName: { color: "#fff", fontWeight: "600", fontSize: 18 },
   companySub: { color: "#fff", opacity: 0.8, fontSize: 13 },
   headerIcons: { flexDirection: "row", gap: 10 },
@@ -296,7 +239,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#FF7F11",
   },
-  statsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 20,
+  },
   statCard: {
     flex: 1,
     backgroundColor: "rgba(255,255,255,0.95)",
@@ -316,12 +263,32 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     marginBottom: 16,
   },
-  scanText: { color: "#fff", fontWeight: "600", marginLeft: 6, fontSize: 16 },
+  scanText: {
+    color: "#fff",
+    fontWeight: "600",
+    marginLeft: 6,
+    fontSize: 16,
+  },
   emptyState: { alignItems: "center", marginTop: 60, paddingHorizontal: 20 },
-  emptyTitle: { color: "#1a1a1a", fontWeight: "600", fontSize: 18, marginTop: 10 },
-  emptyText: { color: "#86868b", textAlign: "center", marginTop: 6, fontSize: 13 },
+  emptyTitle: {
+    color: "#1a1a1a",
+    fontWeight: "600",
+    fontSize: 18,
+    marginTop: 10,
+  },
+  emptyText: {
+    color: "#86868b",
+    textAlign: "center",
+    marginTop: 6,
+    fontSize: 13,
+  },
   section: { marginTop: 20 },
-  sectionTitle: { fontWeight: "600", color: "#1a1a1a", fontSize: 16, marginBottom: 8 },
+  sectionTitle: {
+    fontWeight: "600",
+    color: "#1a1a1a",
+    fontSize: 16,
+    marginBottom: 8,
+  },
   visitorCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -335,20 +302,4 @@ const styles = StyleSheet.create({
   visitorName: { color: "#1a1a1a", fontWeight: "500", fontSize: 15 },
   visitorInfo: { color: "#86868b", fontSize: 13, marginTop: 2 },
   visitorStatus: { color: "#1E90FF", fontWeight: "600", fontSize: 13 },
-  permissionContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#000",
-    paddingHorizontal: 20,
-  },
-  permissionBtn: {
-    backgroundColor: "#1E90FF",
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 20,
-  },
-  permissionText: { color: "#fff", fontWeight: "600" },
-  closeBtn: { position: "absolute", top: 50, right: 20 },
 });

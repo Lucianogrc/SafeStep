@@ -4,7 +4,7 @@ import * as MediaLibrary from "expo-media-library";
 import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { getAuth } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,14 +16,16 @@ import {
   View,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import ViewShot from "react-native-view-shot";
-import { db } from "../firebaseConfig";
+import { db } from "../Services/firebaseConfig";
 
-// ✅ Tipo explícito para el ref del componente ViewShot
-type CustomViewShotRef = {
-  capture: () => Promise<string>;
-};
+// 👇 Tipo de ref correcto para ViewShot
+type ViewShotRef = ViewShot | null;
 
 export default function QRCodeScreen() {
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -31,9 +33,9 @@ export default function QRCodeScreen() {
   const [userId, setUserId] = useState("");
   const [qrValue, setQrValue] = useState("");
   const rotation = useSharedValue(0);
-  const qrRef = useRef<CustomViewShotRef | null>(null);
+  const qrRef = useRef<ViewShotRef>(null);
 
-  // 🔹 Carga los datos del usuario autenticado desde Firestore
+  // 🔹 Cargar datos y asegurar que qrValue exista en Firestore
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -43,56 +45,105 @@ export default function QRCodeScreen() {
 
         const userRef = doc(db, "users", currentUser.uid);
         const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          setUserName(data.fullName || "Usuario");
-          setUserId(data.userId || `HST-${Date.now().toString(36).toUpperCase()}`);
-          setQrValue(currentUser.uid);
 
+        if (!snap.exists()) {
+          console.warn("Documento de usuario no existe en Firestore");
+          return;
         }
+
+        const data = snap.data() as any;
+
+        // Nombre a mostrar
+        setUserName(data.fullName || "Usuario");
+
+        // ID visible
+        const visibleId =
+          data.userId || `HST-${currentUser.uid.substring(0, 6).toUpperCase()}`;
+        setUserId(visibleId);
+
+        // Asegurar qrValue
+        let value = data.qrValue as string | undefined;
+
+        if (!value) {
+          value = `HST-${Date.now().toString(36).toUpperCase()}`;
+
+          await updateDoc(userRef, { qrValue: value });
+          console.log("✅ qrValue creado en Firestore:", value);
+        } else {
+          console.log("ℹ️ qrValue ya existía en Firestore:", value);
+        }
+
+        setQrValue(value);
       } catch (error) {
-        console.error("Error al cargar usuario:", error);
+        console.error("Error al cargar usuario / qrValue:", error);
+        Alert.alert(
+          "Error",
+          "No se pudo cargar la información de tu código QR."
+        );
       }
     };
+
     fetchUserData();
   }, []);
 
-  // 🔄 Rotación animada al regenerar
-  const handleRegenerate = () => {
-    setIsRegenerating(true);
-    rotation.value = withTiming(rotation.value + 360, { duration: 800 });
-    setTimeout(() => {
-      setIsRegenerating(false);
+  // 🔄 Regenerar QR
+  const handleRegenerate = async () => {
+    try {
+      setIsRegenerating(true);
+      rotation.value = withTiming(rotation.value + 360, { duration: 800 });
+
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const userRef = doc(db, "users", currentUser.uid);
+      const newValue = `HST-${Date.now().toString(36).toUpperCase()}`;
+
+      await updateDoc(userRef, { qrValue: newValue });
+      setQrValue(newValue);
+
       Alert.alert("Éxito", "Código QR actualizado correctamente ✅");
-    }, 1500);
+    } catch (err) {
+      console.error("Error al regenerar QR:", err);
+      Alert.alert("Error", "No se pudo actualizar tu código QR.");
+    } finally {
+      setIsRegenerating(false);
+    }
   };
 
-  // 💾 Guardar el QR en la galería (simula "Wallet")
+  // 💾 Guardar QR
   const handleSaveToWallet = async () => {
-  try {
-    const { status } = await MediaLibrary.requestPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permiso requerido", "Activa los permisos de galería para guardar tu QR.");
-      return;
-    }
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permiso requerido",
+          "Activa los permisos de galería para guardar tu QR."
+        );
+        return;
+      }
 
-    if (qrRef.current) {
-      const uri = await qrRef.current.capture();
-      const asset = await MediaLibrary.createAssetAsync(uri);
-      await MediaLibrary.createAlbumAsync("SafeStepQRs", asset, false);
-      Alert.alert("Guardado", "Tu código QR se guardó en la galería 📸");
-    }
-  } catch (err) {
-    Alert.alert("Error", "No se pudo guardar el QR 😢");
-    console.error(err);
-  }
-};
+      if (qrRef.current) {
+        const uri = await qrRef.current.capture?.();
+        if (!uri) throw new Error("No se pudo capturar la vista");
 
-  // 📤 Compartir el QR por WhatsApp o cualquier app
+        const asset = await MediaLibrary.createAssetAsync(uri);
+        await MediaLibrary.createAlbumAsync("SafeStepQRs", asset, false);
+        Alert.alert("Guardado", "Tu código QR se guardó en la galería 📸");
+      }
+    } catch (err) {
+      Alert.alert("Error", "No se pudo guardar el QR 😢");
+      console.error(err);
+    }
+  };
+
+  // 📤 Compartir QR
   const handleShare = async () => {
     try {
       if (qrRef.current) {
-        const uri = await qrRef.current.capture();
+        const uri = await qrRef.current.capture?.();
+        if (!uri) throw new Error("No se pudo capturar la vista");
+
         await Sharing.shareAsync(uri, {
           dialogTitle: "Compartir tu código QR SafeStep",
         });
@@ -146,12 +197,11 @@ export default function QRCodeScreen() {
                 <View style={styles.qrBox}>
                   {qrValue ? (
                     <QRCode
-                      value={qrValue} 
+                      value={qrValue}
                       size={200}
                       color="#1a1a1a"
                       backgroundColor="#fff"
                     />
-
                   ) : (
                     <ActivityIndicator color="#2E8B57" size="large" />
                   )}
@@ -172,7 +222,9 @@ export default function QRCodeScreen() {
                 <Ionicons name="qr-code-outline" size={20} color="#2E8B57" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.instructionsTitle}>¿Cómo usar tu código QR?</Text>
+                <Text style={styles.instructionsTitle}>
+                  ¿Cómo usar tu código QR?
+                </Text>
                 <View style={{ marginTop: 6 }}>
                   {[
                     "Muestra este código en el punto de acceso del parque",
@@ -196,7 +248,10 @@ export default function QRCodeScreen() {
 
           {/* ACTION BUTTONS */}
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: "#fff", borderColor: "#2E8B5720" }]}
+            style={[
+              styles.actionButton,
+              { backgroundColor: "#fff", borderColor: "#2E8B5720" },
+            ]}
             onPress={handleRegenerate}
             disabled={isRegenerating}
             activeOpacity={0.9}
@@ -205,20 +260,41 @@ export default function QRCodeScreen() {
               <ActivityIndicator color="#2E8B57" />
             ) : (
               <>
-                <Ionicons name="refresh" size={18} color="#2E8B57" style={{ marginRight: 6 }} />
+                <Ionicons
+                  name="refresh"
+                  size={18}
+                  color="#2E8B57"
+                  style={{ marginRight: 6 }}
+                />
                 <Text style={styles.actionText}>Actualizar código</Text>
               </>
             )}
           </TouchableOpacity>
 
           <View style={styles.row}>
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleSaveToWallet}>
-              <Ionicons name="wallet-outline" size={18} color="#1a1a1a" style={{ marginRight: 6 }} />
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={handleSaveToWallet}
+            >
+              <Ionicons
+                name="wallet-outline"
+                size={18}
+                color="#1a1a1a"
+                style={{ marginRight: 6 }}
+              />
               <Text style={styles.secondaryText}>Wallet</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleShare}>
-              <Ionicons name="share-outline" size={18} color="#1a1a1a" style={{ marginRight: 6 }} />
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={handleShare}
+            >
+              <Ionicons
+                name="share-outline"
+                size={18}
+                color="#1a1a1a"
+                style={{ marginRight: 6 }}
+              />
               <Text style={styles.secondaryText}>Compartir</Text>
             </TouchableOpacity>
           </View>
@@ -226,8 +302,9 @@ export default function QRCodeScreen() {
           {/* SECURITY NOTE */}
           <View style={styles.securityCard}>
             <Text style={styles.securityText}>
-              🔒 Tu información personal está protegida. Solo las empresas autorizadas pueden acceder
-              a tus datos médicos en caso de emergencia.
+              🔒 Tu información personal está protegida. Solo las empresas
+              autorizadas pueden acceder a tus datos médicos en caso de
+              emergencia.
             </Text>
           </View>
         </View>
@@ -301,7 +378,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   instructionsTitle: { color: "#1a1a1a", fontWeight: "600", fontSize: 15 },
-  instructionsItem: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  instructionsItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
   instructionsText: { color: "#86868b", fontSize: 13, flex: 1 },
   actionButton: {
     borderWidth: 1,
@@ -332,5 +413,10 @@ const styles = StyleSheet.create({
     padding: 14,
     marginTop: 20,
   },
-  securityText: { textAlign: "center", color: "#86868b", fontSize: 12, lineHeight: 18 },
+  securityText: {
+    textAlign: "center",
+    color: "#86868b",
+    fontSize: 12,
+    lineHeight: 18,
+  },
 });

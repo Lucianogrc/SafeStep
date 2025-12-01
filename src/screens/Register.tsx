@@ -11,7 +11,8 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import { registerHiker } from "../firebaseActions";
+import { registerHiker } from "../Services/firebaseActions";
+
 
 type StepType = "email" | "password" | "text" | "number" | "tel" | "select" | "consent";
 

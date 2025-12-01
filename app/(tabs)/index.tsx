@@ -1,3 +1,5 @@
+// app/(tabs)/index.tsx
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -5,11 +7,14 @@ import { ActivityIndicator, View } from "react-native";
 // Screens
 import TabBar from "../../components/ui/TabBar";
 import CompanyDashboard from "../../src/screens/CompanyDashboard";
+import CompanyHikerDetail from "../../src/screens/CompanyHikerDetail";
 import CompanyMap from "../../src/screens/CompanyMap";
 import CompanyNotifications from "../../src/screens/CompanyNotifications";
 import CompanyProfile from "../../src/screens/CompanyProfile";
 import CompanyRegister from "../../src/screens/CompanyRegister";
+import CompanyScanQRScreen from "../../src/screens/CompanyScanQRScreen";
 import EmergencyScreen from "../../src/screens/EmergencyScreen";
+import HikerCompanyDetail from "../../src/screens/HikerCompanyDetail";
 import HikerHome from "../../src/screens/HikerHome";
 import HikerProfile from "../../src/screens/HikerProfile";
 import Login from "../../src/screens/Login";
@@ -24,7 +29,7 @@ import Welcome from "../../src/screens/Welcome";
 
 // Firebase
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../../src/firebaseConfig";
+import { auth } from "../../src/Services/firebaseConfig";
 
 // 🌐 Contexto de Autenticación
 interface AuthContextProps {
@@ -45,27 +50,42 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let firstCheckDone = false;
+    const bootstrap = async () => {
+      try {
+        const [token, role] = await Promise.all([
+          AsyncStorage.getItem("userToken"),
+          AsyncStorage.getItem("userRole"),
+        ]);
 
-    const checkStoredSession = async () => {
-      const token = await AsyncStorage.getItem("userToken");
-      if (token) setIsLoggedIn(true);
-    };
+        console.log("[AUTH] bootstrap token:", token, "role:", role);
 
-    checkStoredSession();
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        await AsyncStorage.setItem("userToken", user.uid);
-        setIsLoggedIn(true);
-      } else {
-        if (firstCheckDone) {
-          await AsyncStorage.removeItem("userToken");
+        if (token && role) {
+          setIsLoggedIn(true);
+        } else {
           setIsLoggedIn(false);
         }
+      } catch (e) {
+        console.log("[AUTH] Error leyendo AsyncStorage:", e);
+        setIsLoggedIn(false);
+      } finally {
+        setLoading(false);
       }
-      firstCheckDone = true;
-      setLoading(false);
+    };
+
+    bootstrap();
+
+    // Solo limpiamos si Firebase dice que ya no hay usuario
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        console.log("[AUTH] onAuthStateChanged: sin usuario, limpiando storage");
+        await AsyncStorage.removeItem("userToken");
+        await AsyncStorage.removeItem("userRole");
+        setIsLoggedIn(false);
+      } else {
+        console.log(
+          "[AUTH] onAuthStateChanged: hay user, pero NO cambiamos isLoggedIn aquí"
+        );
+      }
     });
 
     return () => unsubscribe();
@@ -110,8 +130,11 @@ function MainNavigator() {
     | { name: "companyProfile" }
     | { name: "companyMap" }
     | { name: "company-notifications" }
+    | { name: "company-scan-qr" }
+    | { name: "company-hiker-detail"; hiker: any }
     | { name: "hikerHome" }
     | { name: "hikerProfile" }
+    | { name: "hikerCompanyDetail"; companyId: string }
     | { name: "map" }
     | { name: "places" }
     | { name: "placeDetail"; id: string; from: "hikerHome" | "places" }
@@ -127,9 +150,13 @@ function MainNavigator() {
       const role = await AsyncStorage.getItem("userRole");
       const token = await AsyncStorage.getItem("userToken");
 
+      console.log("[NAV] loadSession token:", token, "role:", role);
+
       if (token && role) {
         setUserRole(role as "hiker" | "company");
-        setScreen(role === "company" ? { name: "dashboard" } : { name: "hikerHome" });
+        setScreen(
+          role === "company" ? { name: "dashboard" } : { name: "hikerHome" }
+        );
       }
       setRoleLoaded(true);
     };
@@ -196,7 +223,9 @@ function MainNavigator() {
       <RegisterTypeSelector
         onBack={() => setScreen({ name: "login" })}
         onSelectType={(type) =>
-          setScreen(type === "hiker" ? { name: "register" } : { name: "companyRegister" })
+          setScreen(
+            type === "hiker" ? { name: "register" } : { name: "companyRegister" }
+          )
         }
       />
     );
@@ -230,7 +259,15 @@ function MainNavigator() {
             if (dest === "notifications") setScreen({ name: "notifications" });
             if (dest === "brazalet") setScreen({ name: "brazalet" });
             if (dest.startsWith("place-"))
-              setScreen({ name: "placeDetail", id: dest.replace("place-", ""), from: "hikerHome" });
+              setScreen({
+                name: "placeDetail",
+                id: dest.replace("place-", ""),
+                from: "hikerHome",
+              });
+            if (dest.startsWith("company-")) {
+              const companyId = dest.replace("company-", "");
+              setScreen({ name: "hikerCompanyDetail", companyId });
+            }
           }}
           onLogout={() => setShowLogoutDialog(true)}
         />
@@ -238,7 +275,7 @@ function MainNavigator() {
         <TabBar
           variant="hiker"
           activeTab="home"
-          onTabChange={(tab) => {
+          onTabChange={(tab: "home" | "places" | "qr") => {
             if (tab === "home") setScreen({ name: "hikerHome" });
             if (tab === "places") setScreen({ name: "places" });
             if (tab === "qr") setScreen({ name: "qr" });
@@ -308,15 +345,30 @@ function MainNavigator() {
   if (userRole === "hiker" && screen.name === "emergency")
     return <EmergencyScreen onBack={() => setScreen({ name: "hikerHome" })} />;
 
-  // 🧾 Código QR
+  // 🧾 Código QR (Hiker)
   if (userRole === "hiker" && screen.name === "qr")
     return (
-      <QRCodeScreen
-        onTabChange={(tab) => {
-          if (tab === "home") setScreen({ name: "hikerHome" });
-          if (tab === "places") setScreen({ name: "places" });
-          if (tab === "qr") setScreen({ name: "qr" });
-        }}
+      <>
+        <QRCodeScreen />
+
+        <TabBar
+          variant="hiker"
+          activeTab="qr"
+          onTabChange={(tab: "home" | "places" | "qr") => {
+            if (tab === "home") setScreen({ name: "hikerHome" });
+            if (tab === "places") setScreen({ name: "places" });
+            if (tab === "qr") setScreen({ name: "qr" });
+          }}
+        />
+      </>
+    );
+
+  // 👤 Detalle de empresa visto por Hiker
+  if (userRole === "hiker" && screen.name === "hikerCompanyDetail")
+    return (
+      <HikerCompanyDetail
+        companyId={screen.companyId}
+        onBack={() => setScreen({ name: "hikerHome" })}
       />
     );
 
@@ -327,13 +379,20 @@ function MainNavigator() {
         <CompanyDashboard
           onNavigate={(s) => {
             if (s === "company-profile") setScreen({ name: "companyProfile" });
-            if (s === "company-notifications") setScreen({ name: "company-notifications" });
+            if (s === "company-notifications")
+              setScreen({ name: "company-notifications" });
+            if (s === "company-scan-qr")
+              setScreen({ name: "company-scan-qr" });
           }}
           onLogout={() => setShowLogoutDialog(true)}
           onTabChange={(tab) => {
             if (tab === "home") setScreen({ name: "dashboard" });
             if (tab === "map") setScreen({ name: "companyMap" });
             if (tab === "profile") setScreen({ name: "companyProfile" });
+          }}
+          onOpenHiker={(hiker) => {
+            console.log("[NAV] Abrir detalle company-hiker:", hiker);
+            setScreen({ name: "company-hiker-detail", hiker });
           }}
         />
 
@@ -345,6 +404,22 @@ function MainNavigator() {
           />
         )}
       </>
+    );
+
+  // 👇 Escáner QR de empresa
+  if (userRole === "company" && screen.name === "company-scan-qr")
+    return (
+      <CompanyScanQRScreen onBack={() => setScreen({ name: "dashboard" })} />
+    );
+
+  // 👇 Detalle de hiker de empresa
+  if (userRole === "company" && screen.name === "company-hiker-detail")
+    return (
+      <CompanyHikerDetail
+        hikerUid={screen.hiker.hikerUid}
+        activeDocId={screen.hiker.id}
+        onBack={() => setScreen({ name: "dashboard" })}
+      />
     );
 
   // 📍 Mapa de empresa
@@ -361,13 +436,22 @@ function MainNavigator() {
 
   // 👤 Perfil de empresa
   if (userRole === "company" && screen.name === "companyProfile")
-    return <CompanyProfile onBack={() => setScreen({ name: "dashboard" })} onLogout={handleLogout} />;
+    return (
+      <CompanyProfile
+        onBack={() => setScreen({ name: "dashboard" })}
+        onLogout={handleLogout}
+      />
+    );
 
   // 🔔 Notificaciones de empresa
   if (userRole === "company" && screen.name === "company-notifications")
-    return <CompanyNotifications onBack={() => setScreen({ name: "dashboard" })} />;
+    return (
+      <CompanyNotifications
+        onBack={() => setScreen({ name: "dashboard" })}
+      />
+    );
 
-  // 🕐 Pantalla de carga intermedia
+  // 🕐 Pantalla de carga intermedia / fallback
   return (
     <View
       style={{
