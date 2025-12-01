@@ -2,7 +2,7 @@ import { Company } from "../models/Company";
 import { Emergency } from "../models/Emergency";
 import { LocationData } from "../models/Location";
 
-// 👇 OJO: carpeta Services con S mayúscula
+// 👇 TODO usa siempre "Services" con S mayúscula
 import CompanyService from "../Services/CompanyService";
 import EmergencyService from "../Services/EmergencyService";
 import LocationService from "../Services/LocationService";

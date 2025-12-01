@@ -1,96 +1,121 @@
-import { getAuth } from "firebase/auth";
+// src/Services/LocationService.ts
 import {
     collection,
     doc,
-    DocumentData,
+    getDoc,
     onSnapshot,
-    QuerySnapshot,
+    serverTimestamp,
     setDoc,
 } from "firebase/firestore";
 import { LocationData } from "../models/Location";
-import { db } from "./firebaseConfig";
+import { auth, db } from "./firebaseConfig";
+
+interface Coords {
+  latitude: number;
+  longitude: number;
+}
 
 const LocationService = {
-  // Actualiza ubicación del usuario actual (hiker o empresa)
+  // 🔹 Guarda la ubicación actual del usuario (hiker o company)
   async updateCurrentUserLocation(
     role: "hiker" | "company",
-    coords: { latitude: number; longitude: number }
+    coords: Coords
   ) {
-    const auth = getAuth();
-    if (!auth.currentUser) throw new Error("No hay usuario autenticado");
+    const user = auth.currentUser;
+    if (!user) {
+      console.log("[LOC] No hay usuario autenticado, no se guarda ubicación.");
+      return;
+    }
 
-    const uid = auth.currentUser.uid;
-    const now = Date.now();
+    console.log("[LOC] Actualizando ubicación en Firestore...", {
+      role,
+      coords,
+    });
 
-    if (role === "hiker") {
-      const ref = doc(db, "hikersLocations", uid);
-      await setDoc(
-        ref,
-        {
-          userId: uid,
-          role: "hiker",
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
-    } else {
-      const ref = doc(db, "companiesLocations", uid);
-      await setDoc(
-        ref,
-        {
-          companyId: uid,
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
+    const base: Omit<LocationData, "userId"> = {
+      role,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      updatedAt: serverTimestamp() as any,
+    };
+
+    try {
+      if (role === "company") {
+        // obtenemos nombre de la empresa
+        const companyRef = doc(db, "companies", user.uid);
+        const snap = await getDoc(companyRef);
+        const data = snap.exists() ? (snap.data() as any) : null;
+        const companyName = data?.companyName || "Empresa";
+
+        await setDoc(
+          doc(db, "companiesLocations", user.uid),
+          {
+            ...base,
+            companyName,
+          },
+          { merge: true }
+        );
+
+        console.log("[LOC] Ubicación de empresa guardada en companiesLocations");
+      } else {
+        await setDoc(
+          doc(db, "locations", user.uid),
+          base,
+          { merge: true }
+        );
+        console.log("[LOC] Ubicación de hiker guardada en locations");
+      }
+    } catch (err) {
+      console.log("[LOC] Error guardando ubicación:", err);
     }
   },
 
-  // Suscripción a empresas (para el mapa de Hiker)
+  // 🔹 Suscripción a ubicaciones de empresas (para mapa del hiker)
   subscribeCompaniesLocations(
     onChange: (items: LocationData[]) => void
   ): () => void {
+    console.log("[LOC] Subscribiéndose a companiesLocations...");
     const colRef = collection(db, "companiesLocations");
-    return onSnapshot(colRef, (snap: QuerySnapshot<DocumentData>) => {
-      const arr: LocationData[] = snap.docs.map((docSnap) => {
-        const d = docSnap.data() as any;
+
+    return onSnapshot(colRef, (snap) => {
+      const list: LocationData[] = snap.docs.map((d) => {
+        const data = d.data() as any;
         return {
-          id: docSnap.id,
-          userId: d.companyId,
+          userId: d.id,
           role: "company",
-          latitude: d.latitude,
-          longitude: d.longitude,
-          name: d.companyName,
-          updatedAt: d.updatedAt || 0,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          updatedAt: data.updatedAt,
+          companyName: data.companyName,
         };
       });
-      onChange(arr);
+
+      console.log("[LOC] companiesLocations escuchadas:", list.length);
+      onChange(list);
     });
   },
 
-  // Suscripción a hikers (para que la empresa vea quién está activo)
+  // 🔹 Suscripción a ubicaciones de hikers (para dashboard de empresa)
   subscribeHikersLocations(
     onChange: (items: LocationData[]) => void
   ): () => void {
-    const colRef = collection(db, "hikersLocations");
-    return onSnapshot(colRef, (snap: QuerySnapshot<DocumentData>) => {
-      const arr: LocationData[] = snap.docs.map((docSnap) => {
-        const d = docSnap.data() as any;
+    console.log("[LOC] Subscribiéndose a locations (hikers)...");
+    const colRef = collection(db, "locations");
+
+    return onSnapshot(colRef, (snap) => {
+      const list: LocationData[] = snap.docs.map((d) => {
+        const data = d.data() as any;
         return {
-          id: docSnap.id,
-          userId: d.userId,
+          userId: d.id,
           role: "hiker",
-          latitude: d.latitude,
-          longitude: d.longitude,
-          name: d.fullName,
-          updatedAt: d.updatedAt || 0,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          updatedAt: data.updatedAt,
         };
       });
-      onChange(arr);
+
+      console.log("[LOC] locations de hikers escuchadas:", list.length);
+      onChange(list);
     });
   },
 };

@@ -1,85 +1,52 @@
-import { Ionicons } from "@expo/vector-icons";
+ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-interface Tab {
-  id: string;
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}
+type TabKey = "home" | "places" | "qr";
 
 interface TabBarProps {
-  activeTab: string;
-  onTabChange: (tabId: string) => void;
-  variant?: "hiker" | "company";
+  activeTab: TabKey;
+  variant: "hiker" | "company";
+  onTabChange: (tab: TabKey) => void;
 }
 
-export default function TabBar({ activeTab, onTabChange, variant = "hiker" }: TabBarProps) {
-  const hikerTabs: Tab[] = [
-    { id: "home", label: "Inicio", icon: "home-outline" },
-    { id: "places", label: "Lugares", icon: "navigate-outline" },
-    { id: "qr", label: "Mi QR", icon: "qr-code-outline" },
-  ];
+export default function TabBar({
+  activeTab,
+  variant,
+  onTabChange,
+}: TabBarProps) {
+  const primaryColor = variant === "hiker" ? "#2E8B57" : "#1E90FF";
 
-  const companyTabs: Tab[] = [
-    { id: "home", label: "Inicio", icon: "home-outline" },
-    { id: "map", label: "Mapa", icon: "map-outline" },
-  ];
-
-  const tabs = variant === "hiker" ? hikerTabs : companyTabs;
-  const activeColor = variant === "hiker" ? "#2E8B57" : "#1E90FF";
+  const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] =
+    [
+      { key: "home", label: "Inicio", icon: "home-outline" },
+      { key: "places", label: "Lugares", icon: "map-outline" },
+      { key: "qr", label: "QR", icon: "qr-code-outline" },
+    ];
 
   return (
     <View style={styles.container}>
       {tabs.map((tab) => {
-        const isActive = activeTab === tab.id;
-        const scale = new Animated.Value(isActive ? 1.1 : 1);
-
+        const isActive = activeTab === tab.key;
         return (
           <TouchableOpacity
-            key={tab.id}
-            onPress={() => {
-              Animated.spring(scale, {
-                toValue: 1.2,
-                friction: 3,
-                useNativeDriver: true,
-              }).start(() => {
-                scale.setValue(1);
-              });
-              onTabChange(tab.id);
-            }}
-            activeOpacity={0.8}
-            style={styles.tabButton}
+            key={tab.key}
+            style={styles.tab}
+            onPress={() => onTabChange(tab.key)}
           >
-            <Animated.View style={{ transform: [{ scale }] }}>
-              <Ionicons
-                name={tab.icon}
-                size={24}
-                color={isActive ? activeColor : "#86868b"}
-                style={{ marginBottom: 4 }}
-              />
-            </Animated.View>
-
+            <Ionicons
+              name={tab.icon}
+              size={22}
+              color={isActive ? primaryColor : "#8e8e93"}
+            />
             <Text
               style={[
                 styles.label,
-                {
-                  color: isActive ? activeColor : "#86868b",
-                  fontWeight: isActive ? "600" : "400",
-                },
+                { color: isActive ? primaryColor : "#8e8e93" },
               ]}
             >
               {tab.label}
             </Text>
-
-            {isActive && (
-              <View
-                style={[
-                  styles.indicator,
-                  { backgroundColor: activeColor },
-                ]}
-              />
-            )}
           </TouchableOpacity>
         );
       })}
@@ -89,34 +56,25 @@ export default function TabBar({ activeTab, onTabChange, variant = "hiker" }: Ta
 
 const styles = StyleSheet.create({
   container: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#fff",
+    paddingBottom: 10,
+    paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingVertical: 6,
-    height: 70,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: "rgba(0,0,0,0.05)",
   },
-  tabButton: {
+  tab: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    flex: 1,
-    paddingVertical: 8,
+    gap: 2,
   },
   label: {
-    fontSize: 12,
-  },
-  indicator: {
-    position: "absolute",
-    bottom: 4,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    fontSize: 11,
+    fontWeight: "500",
   },
 });

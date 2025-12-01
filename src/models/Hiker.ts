@@ -14,6 +14,9 @@ export interface Hiker extends User {
   height?: string;
   weight?: string;
 
-  // 🔹 Campo que usábamos en el service
+  // Campo antiguo
   qrCodeId?: string;
+
+  // Nuevo campo que usamos para buscar por QR (ej. "HST-XXXXXX")
+  qrValue?: string;
 }
