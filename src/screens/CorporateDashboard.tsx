@@ -1,12 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 interface CorporateDashboardProps {
@@ -362,6 +362,7 @@ export default function CorporateDashboard({
     </View>
   );
 }
+
 
 // 🎨 Estilos
 const styles = StyleSheet.create({

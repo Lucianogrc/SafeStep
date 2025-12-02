@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router"; // ✅ navegación moderna de Expo Router
 import { doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
@@ -55,8 +54,9 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
 
   // 🔗 Llevar al QR (pantalla fuera de tabs)
   const goToQR = () => {
-    router.push("/qr");
-  };
+  onNavigate("qr");
+};
+
 
   return (
     <LinearGradient
@@ -78,7 +78,7 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
               <Text style={styles.headerSubtitle}>
                 {brazaletConnected
                   ? "¡Listo para tu próxima aventura!"
-                  : "Activa tu brazalete para comenzar"}
+                  : "Activa tu código QR para comenzar"}
               </Text>
             </>
           )}
@@ -249,7 +249,7 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
               <View style={{ marginLeft: 8 }}>
                 <Text style={styles.tipTitle}>Consejo de seguridad</Text>
                 <Text style={styles.tipText}>
-                  Mantén tu brazalete cargado y recuerda escanear tu QR en cada
+                  Recuerda escanear tu QR en cada
                   punto de control para mantenerte visible y seguro.
                 </Text>
               </View>

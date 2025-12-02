@@ -1,80 +1,140 @@
- import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-type TabKey = "home" | "places" | "qr";
-
 interface TabBarProps {
-  activeTab: TabKey;
-  variant: "hiker" | "company";
-  onTabChange: (tab: TabKey) => void;
+  activeTab: "home" | "places" | "qr" | "map" | "corporation"; // Asegúrate de incluir "corporation"
+  onTabChange: (tab: "home" | "places" | "qr" | "map" | "corporation") => void;
+  variant: "hiker" | "company"; // Diferenciar entre Hiker y Company
 }
 
-export default function TabBar({
-  activeTab,
-  variant,
-  onTabChange,
-}: TabBarProps) {
-  const primaryColor = variant === "hiker" ? "#2E8B57" : "#1E90FF";
-
-  const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] =
-    [
-      { key: "home", label: "Inicio", icon: "home-outline" },
-      { key: "places", label: "Lugares", icon: "map-outline" },
-      { key: "qr", label: "QR", icon: "qr-code-outline" },
-    ];
-
+const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, variant }) => {
   return (
-    <View style={styles.container}>
-      {tabs.map((tab) => {
-        const isActive = activeTab === tab.key;
-        return (
-          <TouchableOpacity
-            key={tab.key}
-            style={styles.tab}
-            onPress={() => onTabChange(tab.key)}
+    <View style={[styles.tabBar, variant === "company" ? styles.companyTab : styles.hikerTab]}>
+      {/* Home Tab */}
+      <TouchableOpacity
+        style={styles.tabButton}
+        onPress={() => onTabChange("home")}
+      >
+        <Ionicons
+          name="home-outline"
+          size={24}
+          color={activeTab === "home" ? "#2E8B57" : "#86868b"}
+        />
+        <Text
+          style={[styles.tabLabel, activeTab === "home" && styles.activeTabLabel]}
+        >
+          Inicio
+        </Text>
+      </TouchableOpacity>
+
+      {/* Map Tab (only for Company) */}
+      {variant === "company" && (
+        <TouchableOpacity
+          style={styles.tabButton}
+          onPress={() => onTabChange("map")}
+        >
+          <Ionicons
+            name="map-outline"
+            size={24}
+            color={activeTab === "map" ? "#2E8B57" : "#86868b"}
+          />
+          <Text
+            style={[styles.tabLabel, activeTab === "map" && styles.activeTabLabel]}
           >
-            <Ionicons
-              name={tab.icon}
-              size={22}
-              color={isActive ? primaryColor : "#8e8e93"}
-            />
-            <Text
-              style={[
-                styles.label,
-                { color: isActive ? primaryColor : "#8e8e93" },
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+            Mapa
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Corporation Tab (only for Company) */}
+      {variant === "company" && (
+        <TouchableOpacity
+          style={styles.tabButton}
+          onPress={() => onTabChange("corporation")}
+        >
+          <Ionicons
+            name="business-outline"
+            size={24}
+            color={activeTab === "corporation" ? "#2E8B57" : "#86868b"}
+          />
+          <Text
+            style={[styles.tabLabel, activeTab === "corporation" && styles.activeTabLabel]}
+          >
+            Corporación
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Places Tab (only for Hiker) */}
+      {variant === "hiker" && (
+        <TouchableOpacity
+          style={styles.tabButton}
+          onPress={() => onTabChange("places")}
+        >
+          <Ionicons
+            name="location-outline"
+            size={24}
+            color={activeTab === "places" ? "#2E8B57" : "#86868b"}
+          />
+          <Text
+            style={[styles.tabLabel, activeTab === "places" && styles.activeTabLabel]}
+          >
+            Lugares
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* QR Tab (only for Hiker) */}
+      {variant === "hiker" && (
+        <TouchableOpacity
+          style={styles.tabButton}
+          onPress={() => onTabChange("qr")}
+        >
+          <Ionicons
+            name="qr-code-outline"
+            size={24}
+            color={activeTab === "qr" ? "#2E8B57" : "#86868b"}
+          />
+          <Text
+            style={[styles.tabLabel, activeTab === "qr" && styles.activeTabLabel]}
+          >
+            QR
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+  tabBar: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingBottom: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
-  },
-  tab: {
-    flex: 1,
+    justifyContent: "space-around",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
+    backgroundColor: "#fff",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
   },
-  label: {
-    fontSize: 11,
-    fontWeight: "500",
+  tabButton: {
+    alignItems: "center",
+  },
+  tabLabel: {
+    fontSize: 12,
+    color: "#86868b",
+    marginTop: 4,
+  },
+  activeTabLabel: {
+    color: "#2E8B57",
+    fontWeight: "600",
+  },
+  hikerTab: {
+    backgroundColor: "#f5f5f7",
+  },
+  companyTab: {
+    backgroundColor: "#f5f5f7",
   },
 });
+
+export default TabBar;
