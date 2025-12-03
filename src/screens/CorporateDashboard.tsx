@@ -1,5 +1,15 @@
+// src/screens/CorporateDashboard.tsx
+
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -8,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { auth, db } from "../Services/firebaseConfig";
 
 interface CorporateDashboardProps {
   onNavigate: (screen: string) => void;
@@ -26,116 +37,126 @@ interface CompanyItem {
   status: CompanyStatus;
   staff: number;
   lastUpdate: string;
+  hasPark?: boolean;
 }
 
-interface EventItem {
-  id: number;
-  type: "alert" | "visitor";
-  company: string;
-  message: string;
-  time: string;
+interface ParkItem {
+  id: string;
+  companyId: string;
+  circleCenter: { latitude: number; longitude: number } | null;
+  circleRadius: number;
+  pois: any[];
+  updatedAt: any;
 }
-
-// 🔹 MOCK DATA (después se sustituye por datos de Firebase)
-const mockCompanies: CompanyItem[] = [
-  {
-    id: "C-001",
-    name: "Parque Nacional Verde",
-    location: "San José, Costa Rica",
-    activeVisitors: 12,
-    totalVisitors: 234,
-    alerts: 1,
-    status: "active",
-    staff: 8,
-    lastUpdate: "Hace 5 min",
-  },
-  {
-    id: "C-002",
-    name: "Reserva Natural El Pino",
-    location: "Heredia, Costa Rica",
-    activeVisitors: 8,
-    totalVisitors: 156,
-    alerts: 0,
-    status: "active",
-    staff: 5,
-    lastUpdate: "Hace 12 min",
-  },
-  {
-    id: "C-003",
-    name: "Bosque Protegido Aurora",
-    location: "Cartago, Costa Rica",
-    activeVisitors: 0,
-    totalVisitors: 89,
-    alerts: 0,
-    status: "inactive",
-    staff: 4,
-    lastUpdate: "Hace 2 horas",
-  },
-  {
-    id: "C-004",
-    name: "Parque Ecológico Montaña Azul",
-    location: "Alajuela, Costa Rica",
-    activeVisitors: 15,
-    totalVisitors: 312,
-    alerts: 2,
-    status: "active",
-    staff: 10,
-    lastUpdate: "Hace 3 min",
-  },
-];
-
-const mockEvents: EventItem[] = [
-  {
-    id: 1,
-    type: "alert",
-    company: "Parque Nacional Verde",
-    message: "Batería baja en visitante",
-    time: "Hace 5 min",
-  },
-  {
-    id: 2,
-    type: "visitor",
-    company: "Parque Ecológico Montaña Azul",
-    message: "Nuevo visitante registrado",
-    time: "Hace 8 min",
-  },
-  {
-    id: 3,
-    type: "alert",
-    company: "Parque Ecológico Montaña Azul",
-    message: "SOS activado - Juan Pérez",
-    time: "Hace 15 min",
-  },
-];
 
 export default function CorporateDashboard({
   onNavigate,
   onLogout,
 }: CorporateDashboardProps) {
+  const [companies, setCompanies] = useState<CompanyItem[]>([]);
+  const [parks, setParks] = useState<ParkItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // 🧮 Métricas globales
+  const uid = auth.currentUser?.uid ?? null;
+
+  // ============================================================
+  // MÉTRICAS
+  // ============================================================
+
   const totalActiveVisitors = useMemo(
-    () => mockCompanies.reduce((sum, c) => sum + c.activeVisitors, 0),
-    []
-  );
-  const totalAlerts = useMemo(
-    () => mockCompanies.reduce((sum, c) => sum + c.alerts, 0),
-    []
-  );
-  const activeCompanies = useMemo(
-    () => mockCompanies.filter((c) => c.status === "active").length,
-    []
+    () => companies.reduce((sum, c) => sum + (c.activeVisitors || 0), 0),
+    [companies]
   );
 
-  // 🔍 Filtro de empresas por nombre
-  const filteredCompanies = useMemo(
-    () =>
-      mockCompanies.filter((c) =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase())
-      ),
-    [searchQuery]
+  const totalAlerts = useMemo(
+    () => companies.reduce((sum, c) => sum + (c.alerts || 0), 0),
+    [companies]
   );
+
+  const activeCompanies = useMemo(
+    () => companies.filter((c) => c.status === "active").length,
+    [companies]
+  );
+
+  // ============================================================
+  // OBTENER EMPRESA ACTUAL
+  // ============================================================
+
+  const fetchUserCompany = async () => {
+    if (!uid) return;
+
+    try {
+      const docRef = doc(db, "companies", uid);
+      const snapshot = await getDoc(docRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.data() as CompanyItem;
+
+       const companyData = snapshot.data() as any;
+
+setCompanies([
+  {
+    id: uid,
+    name: companyData.companyName ?? "Sin nombre",
+    location: companyData.address ?? "Sin ubicación",
+    activeVisitors: companyData.activeVisitors ?? 0,
+    totalVisitors: companyData.totalVisitors ?? 0,
+    alerts: companyData.alerts ?? 0,
+    status: companyData.status ?? "active",
+    staff: companyData.staff ?? 0,
+    lastUpdate: companyData.lastUpdate ?? "Sin datos",
+    hasPark: companyData.hasPark ?? false,
+  },
+]);
+
+
+
+      }
+    } catch (e) {
+      console.log("Error cargando compañía:", e);
+    }
+  };
+
+  // ============================================================
+  // OBTENER PARQUES ASOCIADOS A LA EMPRESA
+  // ============================================================
+
+  const fetchUserParks = async () => {
+    if (!uid) return;
+
+    try {
+      const q = query(collection(db, "parks"), where("companyId", "==", uid));
+      const querySnapshot = await getDocs(q);
+
+      const parksList: ParkItem[] = querySnapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      })) as ParkItem[];
+
+      setParks(parksList);
+    } catch (e) {
+      console.log("Error cargando parques:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserCompany();
+    fetchUserParks();
+  }, []);
+
+  // ============================================================
+  // FILTRO
+  // ============================================================
+
+  const filteredCompanies = useMemo(() => {
+    return companies.filter((c) =>
+      c.name ? c.name.toLowerCase().includes(searchQuery.toLowerCase()) : false
+    );
+  }, [searchQuery, companies]);
+
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <View style={styles.container}>
@@ -143,11 +164,10 @@ export default function CorporateDashboard({
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Panel Corporativo</Text>
-          <Text style={styles.headerSubtitle}>Gestión Multi-Empresa</Text>
+          <Text style={styles.headerSubtitle}>Gestión de Empresas</Text>
         </View>
 
         <View style={styles.headerActions}>
-          {/* Botón notificaciones corporativas */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => onNavigate("corporate-notifications")}
@@ -156,7 +176,6 @@ export default function CorporateDashboard({
             {totalAlerts > 0 && <View style={styles.alertDot} />}
           </TouchableOpacity>
 
-          {/* Perfil corporativo */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => onNavigate("corporate-profile")}
@@ -174,12 +193,14 @@ export default function CorporateDashboard({
             {totalActiveVisitors}
           </Text>
         </View>
+
         <View style={[styles.statCard, { backgroundColor: "#2E8B5715" }]}>
           <Text style={styles.statLabel}>Empresas</Text>
           <Text style={[styles.statValue, { color: "#2E8B57" }]}>
             {activeCompanies}
           </Text>
         </View>
+
         <View
           style={[
             styles.statCard,
@@ -203,21 +224,15 @@ export default function CorporateDashboard({
       {/* CONTENT */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 20, paddingBottom: 50 }}
       >
         {/* SEARCH + ADD */}
         <View style={styles.searchRow}>
           <View style={styles.searchContainer}>
-            <Feather
-              name="search"
-              size={18}
-              color="#86868b"
-              style={styles.searchIcon}
-            />
+            <Feather name="search" size={18} color="#86868b" />
             <TextInput
               placeholder="Buscar empresa..."
-              placeholderTextColor="#b0b0b5"
+              placeholderTextColor="#86868b"
               style={styles.searchInput}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -226,134 +241,91 @@ export default function CorporateDashboard({
 
           <TouchableOpacity
             style={styles.addBtn}
-            onPress={() => onNavigate("company-create")}
+            onPress={() => onNavigate("mapView")}
           >
             <Feather name="plus" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
 
-        {/* COMPANIES LIST */}
+        {/* LISTA EMPRESA + PARQUE */}
         <View style={{ marginTop: 20 }}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Empresas y Parques</Text>
-            <TouchableOpacity style={styles.filterBtn}>
-              <Feather name="filter" size={14} color="#1a1a1a" />
-              <Text style={styles.filterText}>Filtrar</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.sectionTitle}>Empresas y Parques</Text>
 
-          {filteredCompanies.map((company) => (
-            <View
-              key={company.id}
-              style={[
-                styles.companyCard,
-                company.status === "inactive" && { opacity: 0.7 },
-              ]}
-            >
-              <View style={styles.companyHeader}>
-                <View style={styles.companyIconBox}>
+          {filteredCompanies.map((company) => {
+            const park = parks.find((p) => p.companyId === company.id);
+
+            return (
+              <View key={company.id} style={styles.companyCard}>
+                {/* HEADER */}
+                <View style={styles.companyHeader}>
+                  <View style={styles.companyIconBox}>
+                    <Feather name="briefcase" size={22} color="#1E90FF" />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.companyName}>{company.name}</Text>
+
+                    <View style={styles.locationRow}>
+                      <Feather name="map-pin" size={12} color="#86868b" />
+                      <Text style={styles.locationText}>
+                        {company.location || "Sin ubicación"}
+                      </Text>
+                    </View>
+                  </View>
+
                   <Feather
-                    name="briefcase"
-                    size={22}
-                    color={
-                      company.status === "active" ? "#1E90FF" : "#86868b"
-                    }
+                    name="chevron-right"
+                    size={20}
+                    color="#86868b"
+                    onPress={() => onNavigate("mapView")}
                   />
                 </View>
 
-                <View style={{ flex: 1 }}>
-                  <View style={styles.companyTitleRow}>
-                    <Text style={styles.companyName}>{company.name}</Text>
-                    {company.status === "active" && (
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>Activo</Text>
+                {/* PARQUE */}
+                <View style={{ marginTop: 10 }}>
+                  {park ? (
+                    <View style={styles.parkBox}>
+                      <Feather
+                        name="map"
+                        size={18}
+                        color="#2E8B57"
+                        style={{ marginRight: 6 }}
+                      />
+
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.parkTitle}>
+                          Parque registrado
+                        </Text>
+                        <Text style={styles.parkSubtitle}>
+                          {park.pois.length} puntos asignados
+                        </Text>
                       </View>
-                    )}
-                  </View>
 
-                  <View style={styles.locationRow}>
-                    <Feather name="map-pin" size={12} color="#86868b" />
-                    <Text style={styles.locationText}>
-                      {company.location}
-                    </Text>
-                  </View>
-                </View>
-
-                <Feather name="chevron-right" size={18} color="#86868b" />
-              </View>
-
-              {/* Metrics */}
-              <View style={styles.metricsRow}>
-                <View style={[styles.metricBox, { backgroundColor: "#1E90FF10" }]}>
-                  <Text style={styles.metricLabel}>Visitantes</Text>
-                  <Text style={[styles.metricValue, { color: "#1E90FF" }]}>
-                    {company.activeVisitors}
-                  </Text>
-                </View>
-
-                <View style={[styles.metricBox, { backgroundColor: "#f5f5f7" }]}>
-                  <Text style={styles.metricLabel}>Personal</Text>
-                  <Text style={styles.metricValue}>{company.staff}</Text>
-                </View>
-
-                <View
-                  style={[
-                    styles.metricBox,
-                    company.alerts > 0
-                      ? { backgroundColor: "#FF7F1110" }
-                      : { backgroundColor: "#f5f5f7" },
-                  ]}
-                >
-                  <Text style={styles.metricLabel}>Alertas</Text>
-                  <Text
-                    style={[
-                      styles.metricValue,
-                      {
-                        color:
-                          company.alerts > 0 ? "#FF7F11" : "#1a1a1a",
-                      },
-                    ]}
-                  >
-                    {company.alerts}
-                  </Text>
+                      <TouchableOpacity
+                        onPress={() => onNavigate("mapView")}
+                        style={styles.editMapBtn}
+                      >
+                        <Text style={styles.editMapText}>Editar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => onNavigate("mapView")}
+                      style={styles.createParkBtn}
+                    >
+                      <Feather name="plus" size={16} color="#1E90FF" />
+                      <Text style={styles.createParkText}>
+                        Crear mapa del parque
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
-
-              {/* Last Update */}
-              <View style={styles.lastUpdateRow}>
-                <Text style={styles.lastUpdateText}>
-                  Última actualización: {company.lastUpdate}
-                </Text>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
-        {/* RECENT EVENTS */}
-        <View style={{ marginTop: 24 }}>
-          <Text style={styles.sectionTitle}>Eventos Recientes</Text>
-
-          {mockEvents.map((event) => (
-            <View key={event.id} style={styles.eventCard}>
-              <View style={styles.eventIconBox}>
-                {event.type === "alert" ? (
-                  <Feather name="alert-triangle" size={16} color="#FF7F11" />
-                ) : (
-                  <Feather name="users" size={16} color="#1E90FF" />
-                )}
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.eventMessage}>{event.message}</Text>
-                <Text style={styles.eventCompany}>{event.company}</Text>
-              </View>
-
-              <Text style={styles.eventTime}>{event.time}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Opcional: botón de logout corporativo */}
+        {/* LOGOUT */}
         <TouchableOpacity style={styles.logoutBtn} onPress={onLogout}>
           <Feather name="log-out" size={16} color="#ff3b30" />
           <Text style={styles.logoutText}>Cerrar sesión</Text>
@@ -363,39 +335,30 @@ export default function CorporateDashboard({
   );
 }
 
+/* ============================================================
+   ESTILOS
+============================================================ */
 
-// 🎨 Estilos
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f5f5f7",
-  },
+  container: { flex: 1, backgroundColor: "#f5f5f7" },
 
   header: {
     paddingTop: 60,
-    paddingHorizontal: 20,
     paddingBottom: 14,
-    backgroundColor: "#ffffff",
+    paddingHorizontal: 20,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderColor: "#eee",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1a1a1a",
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: "#86868b",
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: "row",
-    gap: 10,
-  },
+
+  headerTitle: { fontSize: 20, fontWeight: "700", color: "#1a1a1a" },
+  headerSubtitle: { fontSize: 13, color: "#86868b" },
+
+  headerActions: { flexDirection: "row", gap: 10 },
+
   iconBtn: {
     width: 38,
     height: 38,
@@ -403,8 +366,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f7",
     alignItems: "center",
     justifyContent: "center",
-    position: "relative",
   },
+
   alertDot: {
     position: "absolute",
     top: 8,
@@ -417,32 +380,23 @@ const styles = StyleSheet.create({
 
   statsRow: {
     flexDirection: "row",
-    gap: 10,
     paddingHorizontal: 20,
     marginTop: 10,
+    gap: 10,
   },
+
   statCard: {
     flex: 1,
     borderRadius: 18,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 10,
   },
-  statLabel: {
-    fontSize: 12,
-    color: "#86868b",
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1a1a1a",
-  },
 
-  searchRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 18,
-  },
+  statLabel: { color: "#86868b", fontSize: 13 },
+  statValue: { color: "#1a1a1a", fontSize: 22, fontWeight: "700" },
+
+  searchRow: { flexDirection: "row", gap: 10, marginTop: 20 },
+
   searchContainer: {
     flex: 1,
     backgroundColor: "#f5f5f7",
@@ -452,61 +406,36 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: "#1a1a1a",
-  },
+
+  searchInput: { flex: 1, marginLeft: 8, color: "#1a1a1a" },
+
   addBtn: {
     width: 46,
     height: 46,
-    borderRadius: 16,
     backgroundColor: "#1E90FF",
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
-    color: "#1a1a1a",
-    marginBottom: 8,
-  },
-  filterBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: "#f5f5f7",
-  },
-  filterText: {
-    fontSize: 12,
-    marginLeft: 4,
+    marginBottom: 10,
     color: "#1a1a1a",
   },
 
   companyCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#fff",
     borderRadius: 22,
     borderWidth: 1,
     borderColor: "#e5e5ea",
     padding: 16,
-    marginTop: 10,
+    marginTop: 12,
   },
-  companyHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
+
+  companyHeader: { flexDirection: "row", alignItems: "center" },
+
   companyIconBox: {
     width: 44,
     height: 44,
@@ -514,120 +443,60 @@ const styles = StyleSheet.create({
     backgroundColor: "#1E90FF15",
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 10,
   },
-  companyTitleRow: {
+
+  companyName: { fontSize: 16, fontWeight: "600", color: "#1a1a1a" },
+
+  locationRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
+  locationText: { color: "#86868b", marginLeft: 4, fontSize: 12 },
+
+  parkBox: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-  },
-  companyName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1a1a1a",
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
     backgroundColor: "#2E8B5715",
-  },
-  badgeText: {
-    fontSize: 11,
-    color: "#2E8B57",
-    fontWeight: "600",
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  locationText: {
-    fontSize: 12,
-    color: "#86868b",
-  },
-
-  metricsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 14,
-  },
-  metricBox: {
-    flex: 1,
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-  },
-  metricLabel: {
-    fontSize: 11,
-    color: "#86868b",
-    marginBottom: 4,
-  },
-  metricValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1a1a1a",
-  },
-
-  lastUpdateRow: {
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderColor: "#eee",
-    paddingTop: 6,
-  },
-  lastUpdateText: {
-    fontSize: 11,
-    color: "#86868b",
-  },
-
-  eventCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#e5e5ea",
     padding: 12,
-    marginTop: 8,
-    gap: 10,
-  },
-  eventIconBox: {
-    width: 32,
-    height: 32,
     borderRadius: 16,
-    backgroundColor: "#f5f5f7",
+  },
+
+  parkTitle: { fontSize: 14, fontWeight: "600", color: "#1a1a1a" },
+  parkSubtitle: { fontSize: 12, color: "#2E8B57" },
+
+  editMapBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#2E8B57",
+    borderRadius: 10,
+  },
+
+  editMapText: { fontSize: 12, color: "#fff" },
+
+  createParkBtn: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "#1E90FF15",
+    padding: 12,
+    borderRadius: 14,
   },
-  eventMessage: {
+
+  createParkText: {
+    color: "#1E90FF",
+    marginLeft: 6,
     fontSize: 13,
-    color: "#1a1a1a",
-    marginBottom: 2,
-  },
-  eventCompany: {
-    fontSize: 11,
-    color: "#86868b",
-  },
-  eventTime: {
-    fontSize: 11,
-    color: "#86868b",
+    fontWeight: "600",
   },
 
   logoutBtn: {
-    marginTop: 24,
+    marginTop: 30,
     alignSelf: "center",
     flexDirection: "row",
-    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#ff3b30",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    alignItems: "center",
   },
-  logoutText: {
-    fontSize: 13,
-    color: "#ff3b30",
-    fontWeight: "600",
-    marginLeft: 6,
-  },
+
+  logoutText: { color: "#ff3b30", marginLeft: 6, fontWeight: "600" },
 });

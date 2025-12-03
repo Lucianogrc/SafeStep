@@ -30,14 +30,17 @@ import Register from "../../src/screens/Register";
 import RegisterTypeSelector from "../../src/screens/RegisterTypeSelector";
 import Welcome from "../../src/screens/Welcome";
 
+// Nuevo: pantalla del mapa corporativo
+import MapViewScreen from "../../src/screens/MapView";
+
 // Firebase
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../../src/Services/firebaseConfig";
 
-// ⛰ Tracker de ubicación del hiker
+// Tracker: ubicación del hiker
 import HikerLocationTracker from "../../components/HikerLocationTracker";
 
-// 🌐 Auth Context
+// Auth context
 interface AuthContextProps {
   isLoggedIn: boolean;
   setIsLoggedIn: (value: boolean) => void;
@@ -49,9 +52,10 @@ const AuthContext = createContext<AuthContextProps>({
 });
 
 export const useAuth = () => useContext(AuthContext);
+
 type TabKey = "home" | "places" | "qr" | "map" | "corporation";
 
-// 🔐 Provider
+// Provider
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -91,7 +95,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// 🧭 Main Navigator
+// Main Navigator
 function MainNavigator() {
   const { isLoggedIn, setIsLoggedIn } = useAuth();
   const [userRole, setUserRole] = useState<"hiker" | "company" | null>(null);
@@ -100,20 +104,19 @@ function MainNavigator() {
 
   const [screen, setScreen] = useState<any>({ name: "welcome" });
 
-  // Load role from storage
+  // Load role session
   useEffect(() => {
     const loadSession = async () => {
       const role = await AsyncStorage.getItem("userRole");
       const token = await AsyncStorage.getItem("userToken");
 
       if (token && role) {
-        setUserRole(role as "hiker" | "company");
-        setScreen(
-          role === "company" ? { name: "dashboard" } : { name: "hikerHome" }
-        );
+        setUserRole(role as any);
+        setScreen(role === "company" ? { name: "dashboard" } : { name: "hikerHome" });
       }
       setRoleLoaded(true);
     };
+
     loadSession();
   }, []);
 
@@ -122,9 +125,7 @@ function MainNavigator() {
     await AsyncStorage.setItem("userRole", role);
     setUserRole(role);
     setIsLoggedIn(true);
-    setScreen(role === "company"
-      ? { name: "dashboard" }
-      : { name: "hikerHome" });
+    setScreen(role === "company" ? { name: "dashboard" } : { name: "hikerHome" });
   };
 
   const handleLogout = async () => {
@@ -135,11 +136,8 @@ function MainNavigator() {
     setScreen({ name: "welcome" });
   };
 
-  // 🔁 Tracker: se monta en todas las pantallas del hiker
-  const hikerTracker =
-    userRole === "hiker" ? <HikerLocationTracker /> : null;
+  const hikerTracker = userRole === "hiker" ? <HikerLocationTracker /> : null;
 
-  // Wait until role is loaded
   if (isLoggedIn && !roleLoaded)
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -147,9 +145,9 @@ function MainNavigator() {
       </View>
     );
 
-  // --------------------------
-  // AUTH FLOW
-  // --------------------------
+  /* =======================
+     AUTH FLOW
+  ======================== */
 
   if (!isLoggedIn && screen.name === "welcome")
     return <Welcome onGetStarted={() => setScreen({ name: "login" })} />;
@@ -169,22 +167,13 @@ function MainNavigator() {
       <RegisterTypeSelector
         onBack={() => setScreen({ name: "login" })}
         onSelectType={(type) =>
-          setScreen(
-            type === "hiker"
-              ? { name: "register" }
-              : { name: "companyRegister" }
-          )
+          setScreen(type === "hiker" ? { name: "register" } : { name: "companyRegister" })
         }
       />
     );
 
   if (!isLoggedIn && screen.name === "register")
-    return (
-      <Register
-        onBack={() => setScreen({ name: "registerType" })}
-        onComplete={() => handleLogin("hiker")}
-      />
-    );
+    return <Register onBack={() => setScreen({ name: "registerType" })} onComplete={() => handleLogin("hiker")} />;
 
   if (!isLoggedIn && screen.name === "companyRegister")
     return (
@@ -194,9 +183,9 @@ function MainNavigator() {
       />
     );
 
-  // --------------------------
-  // HIKER
-  // --------------------------
+  /* =======================
+     HIKER FLOW
+  ======================== */
 
   if (userRole === "hiker" && screen.name === "hikerHome")
     return (
@@ -209,8 +198,7 @@ function MainNavigator() {
             if (dest === "map") setScreen({ name: "map" });
             if (dest === "places") setScreen({ name: "places" });
             if (dest === "emergency") setScreen({ name: "emergency" });
-            if (dest === "notifications")
-              setScreen({ name: "notifications" });
+            if (dest === "notifications") setScreen({ name: "notifications" });
             if (dest === "brazalet") setScreen({ name: "brazalet" });
             if (dest === "qr") setScreen({ name: "qr" });
 
@@ -241,11 +229,7 @@ function MainNavigator() {
         />
 
         {showLogoutDialog && (
-          <LogoutConfirmDialog
-            isOpen={showLogoutDialog}
-            onConfirm={handleLogout}
-            onCancel={() => setShowLogoutDialog(false)}
-          />
+          <LogoutConfirmDialog isOpen={showLogoutDialog} onConfirm={handleLogout} onCancel={() => setShowLogoutDialog(false)} />
         )}
       </>
     );
@@ -351,29 +335,24 @@ function MainNavigator() {
       </>
     );
 
-  // --------------------------
-  // COMPANY
-  // --------------------------
+  /* =======================
+     COMPANY FLOW
+  ======================== */
 
-  // 📌 MAIN COMPANY DASHBOARD (Home)
   if (userRole === "company" && screen.name === "dashboard")
     return (
       <>
         <CompanyDashboard
           onNavigate={(s) => {
-            if (s === "company-profile")
-              setScreen({ name: "companyProfile" });
-            if (s === "company-notifications")
-              setScreen({ name: "company-notifications" });
-            if (s === "company-scan-qr")
-              setScreen({ name: "company-scan-qr" });
+            if (s === "company-profile") setScreen({ name: "companyProfile" });
+            if (s === "company-notifications") setScreen({ name: "company-notifications" });
+            if (s === "company-scan-qr") setScreen({ name: "company-scan-qr" });
           }}
           onLogout={() => setShowLogoutDialog(true)}
           onTabChange={(tab) => {
             if (tab === "home") setScreen({ name: "dashboard" });
             if (tab === "map") setScreen({ name: "companyMap" });
-            if (tab === "corporation")
-              setScreen({ name: "corporateDashboard" });
+            if (tab === "corporation") setScreen({ name: "corporateDashboard" });
           }}
           onOpenHiker={(hiker) =>
             setScreen({ name: "company-hiker-detail", hiker })
@@ -381,20 +360,25 @@ function MainNavigator() {
         />
 
         {showLogoutDialog && (
-          <LogoutConfirmDialog
-            isOpen={showLogoutDialog}
-            onConfirm={handleLogout}
-            onCancel={() => setShowLogoutDialog(false)}
-          />
+          <LogoutConfirmDialog isOpen={showLogoutDialog} onConfirm={handleLogout} onCancel={() => setShowLogoutDialog(false)} />
         )}
       </>
     );
 
-  // 📌 COMPANY → CORPORATE DASHBOARD (NEW)
+  /* MERGE FIX: CorporateDashboard con navegación agregada */
   if (userRole === "company" && screen.name === "corporateDashboard")
     return (
       <>
-        <CorporateDashboard onBack={() => setScreen({ name: "dashboard" })} />
+        <CorporateDashboard
+          onBack={() => setScreen({ name: "dashboard" })}
+
+          // <-- LÍNEA EXACTA QUE APORTÓ TU AMIGO
+          onNavigate={(s) => {
+            if (s === "mapView") setScreen({ name: "mapView" });
+          }}
+
+          onLogout={handleLogout}
+        />
 
         <TabBar
           variant="company"
@@ -402,19 +386,18 @@ function MainNavigator() {
           onTabChange={(tab) => {
             if (tab === "home") setScreen({ name: "dashboard" });
             if (tab === "map") setScreen({ name: "companyMap" });
-            if (tab === "corporation")
-              setScreen({ name: "corporateDashboard" });
+            if (tab === "corporation") setScreen({ name: "corporateDashboard" });
           }}
         />
       </>
     );
 
+  // Nueva ruta para crear parque / mapa
+  if (userRole === "company" && screen.name === "mapView")
+    return <MapViewScreen onBack={() => setScreen({ name: "corporateDashboard" })} />;
+
   if (userRole === "company" && screen.name === "company-scan-qr")
-    return (
-      <CompanyScanQRScreen
-        onBack={() => setScreen({ name: "dashboard" })}
-      />
-    );
+    return <CompanyScanQRScreen onBack={() => setScreen({ name: "dashboard" })} />;
 
   if (userRole === "company" && screen.name === "company-hiker-detail")
     return (
@@ -446,15 +429,11 @@ function MainNavigator() {
     );
 
   if (userRole === "company" && screen.name === "company-notifications")
-    return (
-      <CompanyNotifications
-        onBack={() => setScreen({ name: "dashboard" })}
-      />
-    );
+    return <CompanyNotifications onBack={() => setScreen({ name: "dashboard" })} />;
 
-  // --------------------------
-  // FALLBACK
-  // --------------------------
+  /* =======================
+     FALLBACK
+  ======================== */
 
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -463,7 +442,7 @@ function MainNavigator() {
   );
 }
 
-// 🚀 APP
+// App root
 export default function App() {
   return (
     <AuthProvider>
