@@ -1,3 +1,5 @@
+// app/(tabs)/_layout.tsx
+import React from "react";
 import { Slot } from "expo-router";
 import { View } from "react-native";
 import TabBar from "../../components/ui/TabBar";
@@ -11,9 +13,9 @@ export default function Layout() {
       <Slot />
       {isLoggedIn && (
         <TabBar
-          activeTab="home" // valor inicial por defecto
-          onTabChange={() => {}} // función vacía para evitar errores
-          variant="hiker" // o "company", según el tipo de usuario
+          activeTab="home"         // valor inicial por defecto
+          onTabChange={() => {}}  // función vacía para evitar errores
+          variant="hiker"         // o "company", según el tipo de usuario
         />
       )}
     </View>

@@ -1,3 +1,4 @@
+// app/(tabs)/index.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -33,6 +34,9 @@ import Welcome from "../../src/screens/Welcome";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../../src/Services/firebaseConfig";
 
+// ⛰ Tracker de ubicación del hiker
+import HikerLocationTracker from "../../components/HikerLocationTracker";
+
 // 🌐 Auth Context
 interface AuthContextProps {
   isLoggedIn: boolean;
@@ -45,7 +49,7 @@ const AuthContext = createContext<AuthContextProps>({
 });
 
 export const useAuth = () => useContext(AuthContext);
-type TabKey = "home" | "places" | "qr" | "map" | "corporation"; // Asegúrate de agregar "map" y "corporation"
+type TabKey = "home" | "places" | "qr" | "map" | "corporation";
 
 // 🔐 Provider
 function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -104,7 +108,9 @@ function MainNavigator() {
 
       if (token && role) {
         setUserRole(role as "hiker" | "company");
-        setScreen(role === "company" ? { name: "dashboard" } : { name: "hikerHome" });
+        setScreen(
+          role === "company" ? { name: "dashboard" } : { name: "hikerHome" }
+        );
       }
       setRoleLoaded(true);
     };
@@ -116,7 +122,9 @@ function MainNavigator() {
     await AsyncStorage.setItem("userRole", role);
     setUserRole(role);
     setIsLoggedIn(true);
-    setScreen(role === "company" ? { name: "dashboard" } : { name: "hikerHome" });
+    setScreen(role === "company"
+      ? { name: "dashboard" }
+      : { name: "hikerHome" });
   };
 
   const handleLogout = async () => {
@@ -126,6 +134,10 @@ function MainNavigator() {
     setUserRole(null);
     setScreen({ name: "welcome" });
   };
+
+  // 🔁 Tracker: se monta en todas las pantallas del hiker
+  const hikerTracker =
+    userRole === "hiker" ? <HikerLocationTracker /> : null;
 
   // Wait until role is loaded
   if (isLoggedIn && !roleLoaded)
@@ -157,13 +169,22 @@ function MainNavigator() {
       <RegisterTypeSelector
         onBack={() => setScreen({ name: "login" })}
         onSelectType={(type) =>
-          setScreen(type === "hiker" ? { name: "register" } : { name: "companyRegister" })
+          setScreen(
+            type === "hiker"
+              ? { name: "register" }
+              : { name: "companyRegister" }
+          )
         }
       />
     );
 
   if (!isLoggedIn && screen.name === "register")
-    return <Register onBack={() => setScreen({ name: "registerType" })} onComplete={() => handleLogin("hiker")} />;
+    return (
+      <Register
+        onBack={() => setScreen({ name: "registerType" })}
+        onComplete={() => handleLogin("hiker")}
+      />
+    );
 
   if (!isLoggedIn && screen.name === "companyRegister")
     return (
@@ -180,13 +201,16 @@ function MainNavigator() {
   if (userRole === "hiker" && screen.name === "hikerHome")
     return (
       <>
+        {hikerTracker}
+
         <HikerHome
           onNavigate={(dest) => {
             if (dest === "hiker-profile") setScreen({ name: "hikerProfile" });
             if (dest === "map") setScreen({ name: "map" });
             if (dest === "places") setScreen({ name: "places" });
             if (dest === "emergency") setScreen({ name: "emergency" });
-            if (dest === "notifications") setScreen({ name: "notifications" });
+            if (dest === "notifications")
+              setScreen({ name: "notifications" });
             if (dest === "brazalet") setScreen({ name: "brazalet" });
             if (dest === "qr") setScreen({ name: "qr" });
 
@@ -217,55 +241,92 @@ function MainNavigator() {
         />
 
         {showLogoutDialog && (
-          <LogoutConfirmDialog isOpen={showLogoutDialog} onConfirm={handleLogout} onCancel={() => setShowLogoutDialog(false)} />
+          <LogoutConfirmDialog
+            isOpen={showLogoutDialog}
+            onConfirm={handleLogout}
+            onCancel={() => setShowLogoutDialog(false)}
+          />
         )}
       </>
     );
 
   if (userRole === "hiker" && screen.name === "places")
     return (
-      <Places
-        onTabChange={(tab) => {
-          if (tab === "home") setScreen({ name: "hikerHome" });
-          if (tab === "places") setScreen({ name: "places" });
-          if (tab === "qr") setScreen({ name: "qr" });
-        }}
-        onNavigateToDetail={(placeId) =>
-          setScreen({ name: "placeDetail", id: placeId, from: "places" })
-        }
-      />
+      <>
+        {hikerTracker}
+
+        <Places
+          onTabChange={(tab) => {
+            if (tab === "home") setScreen({ name: "hikerHome" });
+            if (tab === "places") setScreen({ name: "places" });
+            if (tab === "qr") setScreen({ name: "qr" });
+          }}
+          onNavigateToDetail={(placeId) =>
+            setScreen({ name: "placeDetail", id: placeId, from: "places" })
+          }
+        />
+      </>
     );
 
   if (userRole === "hiker" && screen.name === "placeDetail")
     return (
-      <PlaceDetail
-        placeId={screen.id}
-        onBack={() =>
-          screen.from === "hikerHome" ? setScreen({ name: "hikerHome" }) : setScreen({ name: "places" })
-        }
-      />
+      <>
+        {hikerTracker}
+
+        <PlaceDetail
+          placeId={screen.id}
+          onBack={() =>
+            screen.from === "hikerHome"
+              ? setScreen({ name: "hikerHome" })
+              : setScreen({ name: "places" })
+          }
+        />
+      </>
     );
 
   if (userRole === "hiker" && screen.name === "hikerProfile")
     return (
       <>
-        <HikerProfile onBack={() => setScreen({ name: "hikerHome" })} onLogout={() => setShowLogoutDialog(true)} />
+        {hikerTracker}
+
+        <HikerProfile
+          onBack={() => setScreen({ name: "hikerHome" })}
+          onLogout={() => setShowLogoutDialog(true)}
+        />
+
         {showLogoutDialog && (
-          <LogoutConfirmDialog isOpen={showLogoutDialog} onConfirm={handleLogout} onCancel={() => setShowLogoutDialog(false)} />
+          <LogoutConfirmDialog
+            isOpen={showLogoutDialog}
+            onConfirm={handleLogout}
+            onCancel={() => setShowLogoutDialog(false)}
+          />
         )}
       </>
     );
 
   if (userRole === "hiker" && screen.name === "notifications")
-    return <Notifications onBack={() => setScreen({ name: "hikerHome" })} />;
+    return (
+      <>
+        {hikerTracker}
+        <Notifications onBack={() => setScreen({ name: "hikerHome" })} />
+      </>
+    );
 
   if (userRole === "hiker" && screen.name === "emergency")
-    return <EmergencyScreen onBack={() => setScreen({ name: "hikerHome" })} />;
+    return (
+      <>
+        {hikerTracker}
+        <EmergencyScreen onBack={() => setScreen({ name: "hikerHome" })} />
+      </>
+    );
 
   if (userRole === "hiker" && screen.name === "qr")
     return (
       <>
+        {hikerTracker}
+
         <QRCodeScreen />
+
         <TabBar
           variant="hiker"
           activeTab="qr"
@@ -280,10 +341,14 @@ function MainNavigator() {
 
   if (userRole === "hiker" && screen.name === "hikerCompanyDetail")
     return (
-      <HikerCompanyDetail
-        companyId={screen.companyId}
-        onBack={() => setScreen({ name: "hikerHome" })}
-      />
+      <>
+        {hikerTracker}
+
+        <HikerCompanyDetail
+          companyId={screen.companyId}
+          onBack={() => setScreen({ name: "hikerHome" })}
+        />
+      </>
     );
 
   // --------------------------
@@ -296,25 +361,31 @@ function MainNavigator() {
       <>
         <CompanyDashboard
           onNavigate={(s) => {
-            if (s === "company-profile") setScreen({ name: "companyProfile" });
-            if (s === "company-notifications") setScreen({ name: "company-notifications" });
-            if (s === "company-scan-qr") setScreen({ name: "company-scan-qr" });
+            if (s === "company-profile")
+              setScreen({ name: "companyProfile" });
+            if (s === "company-notifications")
+              setScreen({ name: "company-notifications" });
+            if (s === "company-scan-qr")
+              setScreen({ name: "company-scan-qr" });
           }}
           onLogout={() => setShowLogoutDialog(true)}
           onTabChange={(tab) => {
             if (tab === "home") setScreen({ name: "dashboard" });
             if (tab === "map") setScreen({ name: "companyMap" });
-            if (tab === "corporation") setScreen({ name: "corporateDashboard" });
+            if (tab === "corporation")
+              setScreen({ name: "corporateDashboard" });
           }}
           onOpenHiker={(hiker) =>
             setScreen({ name: "company-hiker-detail", hiker })
           }
         />
 
-        
-
         {showLogoutDialog && (
-          <LogoutConfirmDialog isOpen={showLogoutDialog} onConfirm={handleLogout} onCancel={() => setShowLogoutDialog(false)} />
+          <LogoutConfirmDialog
+            isOpen={showLogoutDialog}
+            onConfirm={handleLogout}
+            onCancel={() => setShowLogoutDialog(false)}
+          />
         )}
       </>
     );
@@ -323,9 +394,7 @@ function MainNavigator() {
   if (userRole === "company" && screen.name === "corporateDashboard")
     return (
       <>
-        <CorporateDashboard
-          onBack={() => setScreen({ name: "dashboard" })}
-        />
+        <CorporateDashboard onBack={() => setScreen({ name: "dashboard" })} />
 
         <TabBar
           variant="company"
@@ -333,14 +402,19 @@ function MainNavigator() {
           onTabChange={(tab) => {
             if (tab === "home") setScreen({ name: "dashboard" });
             if (tab === "map") setScreen({ name: "companyMap" });
-            if (tab === "corporation") setScreen({ name: "corporateDashboard" });
+            if (tab === "corporation")
+              setScreen({ name: "corporateDashboard" });
           }}
         />
       </>
     );
 
   if (userRole === "company" && screen.name === "company-scan-qr")
-    return <CompanyScanQRScreen onBack={() => setScreen({ name: "dashboard" })} />;
+    return (
+      <CompanyScanQRScreen
+        onBack={() => setScreen({ name: "dashboard" })}
+      />
+    );
 
   if (userRole === "company" && screen.name === "company-hiker-detail")
     return (
@@ -357,7 +431,8 @@ function MainNavigator() {
         onTabChange={(tab) => {
           if (tab === "home") setScreen({ name: "dashboard" });
           if (tab === "map") setScreen({ name: "companyMap" });
-          if (tab === "corporation") setScreen({ name: "corporateDashboard" });
+          if (tab === "corporation")
+            setScreen({ name: "corporateDashboard" });
         }}
       />
     );
@@ -371,7 +446,11 @@ function MainNavigator() {
     );
 
   if (userRole === "company" && screen.name === "company-notifications")
-    return <CompanyNotifications onBack={() => setScreen({ name: "dashboard" })} />;
+    return (
+      <CompanyNotifications
+        onBack={() => setScreen({ name: "dashboard" })}
+      />
+    );
 
   // --------------------------
   // FALLBACK
