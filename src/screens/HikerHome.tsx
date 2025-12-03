@@ -1,3 +1,4 @@
+// src/screens/HikerHome.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { doc, getDoc } from "firebase/firestore";
@@ -18,9 +19,17 @@ interface HikerHomeProps {
   onLogout: () => void;
 }
 
+interface HikerPlace {
+  companyId: string;
+  companyName: string;
+  active?: boolean;
+  lastCheckInAt?: any;
+}
+
 export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
   const [brazaletConnected, setBrazaletConnected] = useState(false);
   const [hasPlaces, setHasPlaces] = useState(false);
+  const [places, setPlaces] = useState<HikerPlace[]>([]);
   const [userName, setUserName] = useState<string | null>(null);
   const [loadingName, setLoadingName] = useState(true);
 
@@ -28,21 +37,44 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
     const fetchUserData = async () => {
       try {
         const user = auth.currentUser;
-        if (!user) return;
+        if (!user) {
+          console.log("[HIKER_HOME] No hay usuario logueado");
+          return;
+        }
+
+        console.log("[HIKER_HOME] UID actual:", user.uid);
 
         const userRef = doc(db, "users", user.uid);
         const snap = await getDoc(userRef);
 
         if (snap.exists()) {
-          const data = snap.data();
+          const data = snap.data() as any;
+          console.log("[HIKER_HOME] Documento de usuario:", data);
+
           setUserName(data.fullName || "Hiker");
           setBrazaletConnected(data.brazaletActive || false);
-          setHasPlaces(data.places?.length > 0 || false);
+
+          // 🔹 Normalizamos places: debe ser un ARRAY de objetos
+          const rawPlaces: any[] = Array.isArray(data.places) ? data.places : [];
+          console.log("[HIKER_HOME] places crudos de Firestore:", rawPlaces);
+
+          const userPlaces: HikerPlace[] = rawPlaces.map((p) => ({
+            companyId: p.companyId,
+            companyName: p.companyName,
+            active: p.active ?? false,
+            lastCheckInAt: p.lastCheckInAt,
+          }));
+
+          console.log("[HIKER_HOME] places parseados:", userPlaces);
+
+          setPlaces(userPlaces);
+          setHasPlaces(userPlaces.length > 0);
         } else {
+          console.log("[HIKER_HOME] No existe doc de usuario");
           setUserName("Hiker");
         }
       } catch (err) {
-        console.log("❌ Error al obtener nombre:", err);
+        console.log("❌ Error al obtener nombre/places:", err);
         setUserName("Hiker");
       } finally {
         setLoadingName(false);
@@ -52,11 +84,13 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
     fetchUserData();
   }, []);
 
-  // 🔗 Llevar al QR (pantalla fuera de tabs)
+  // 🔗 Llevar al QR
   const goToQR = () => {
-  onNavigate("qr");
-};
+    onNavigate("qr");
+  };
 
+  // Solo usamos esto para poner primero los activos
+  const activePlaces = places.filter((p) => p.active);
 
   return (
     <LinearGradient
@@ -107,88 +141,6 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
         contentContainerStyle={{ paddingBottom: 110 }}
       >
         <View style={styles.content}>
-          {/* 🔗 SafeBrazalet */}
-          {/*
-          <Animated.View entering={FadeInDown.duration(400)}>
-            <TouchableOpacity
-              style={[
-                styles.card,
-                brazaletConnected ? styles.brazaletActive : styles.brazaletInactive,
-              ]}
-              activeOpacity={0.8}
-            >
-              <View style={styles.cardHeader}>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <View
-                    style={[
-                      styles.iconContainer,
-                      {
-                        backgroundColor: brazaletConnected
-                          ? "#FF7F1115"
-                          : "#f0f0f0",
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="bluetooth-outline"
-                      size={26}
-                      color={brazaletConnected ? "#FF7F11" : "#b0b0b0"}
-                    />
-                  </View>
-                  <View style={{ marginLeft: 10 }}>
-                    <Text style={styles.cardTitle}>SafeBrazalet</Text>
-                    <Text style={styles.cardSubtitle}>
-                      {brazaletConnected
-                        ? "Conectado y listo"
-                        : "Aún no vinculado"}
-                    </Text>
-                  </View>
-                </View>
-                {brazaletConnected && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>Activo</Text>
-                  </View>
-                )}
-              </View>
-
-              {brazaletConnected ? (
-                <View style={styles.statsRow}>
-                  <View style={styles.statBox}>
-                    <Ionicons
-                      name="battery-half-outline"
-                      size={16}
-                      color="#86868b"
-                    />
-                    <Text style={styles.statLabel}>Batería</Text>
-                    <Text style={styles.statValue}>85%</Text>
-                  </View>
-                  <View style={styles.statBox}>
-                    <Ionicons
-                      name="location-outline"
-                      size={16}
-                      color="#86868b"
-                    />
-                    <Text style={styles.statLabel}>GPS</Text>
-                    <Text style={[styles.statValue, { color: "#2E8B57" }]}>
-                      Excelente
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.unlinkedContainer}>
-                  <Ionicons name="qr-code-outline" size={40} color="#FF7F11" />
-                  <Text style={styles.unlinkedText}>
-                    Escanea tu QR en un punto autorizado para activar tu
-                    brazalete y comenzar tu aventura.
-                  </Text>
-                  <TouchableOpacity style={styles.connectBtn} onPress={goToQR}>
-                    <Text style={styles.connectBtnText}>Escanear QR</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </TouchableOpacity>
-          </Animated.View>
-*/}
           {/* 🚨 SOS */}
           <Animated.View entering={FadeInDown.delay(150).duration(400)}>
             <TouchableOpacity
@@ -197,7 +149,11 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
               style={styles.sosCard}
             >
               <View style={styles.sosIcon}>
-                <Ionicons name="alert-circle-outline" size={28} color="#FF3B30" />
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={28}
+                  color="#FF3B30"
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sosTitle}>SOS Emergencia</Text>
@@ -216,7 +172,67 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
             </View>
 
             {hasPlaces ? (
-              <View>{/* Próximamente lista de lugares */}</View>
+              <View>
+                {/* Lugares activos */}
+                {activePlaces.length > 0 &&
+                  activePlaces.map((p, index) => (
+                    <TouchableOpacity
+                      key={`active-${p.companyId}-${index}`}
+                      style={styles.placeCard}
+                      activeOpacity={0.9}
+                      onPress={() => onNavigate(`company-${p.companyId}`)}
+                    >
+                      <View style={styles.placeIcon}>
+                        <Ionicons
+                          name="map-outline"
+                          size={22}
+                          color="#1E90FF"
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.placeName}>
+                          {p.companyName}
+                        </Text>
+                        <Text style={styles.placeMeta}>
+                          Activo actualmente
+                        </Text>
+                      </View>
+                      <View style={styles.badgeActive}>
+                        <Text style={styles.badgeActiveText}>Activo</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+
+                {/* Resto de lugares (historial) */}
+                {places
+                  .filter((p) => !p.active)
+                  .map((p, index) => (
+                    <TouchableOpacity
+                      key={`history-${p.companyId}-${index}`}
+                      style={styles.placeHistoryCard}
+                      activeOpacity={0.9}
+                      onPress={() => onNavigate(`company-${p.companyId}`)}
+                    >
+                      <View style={styles.placeIconMuted}>
+                        <Ionicons
+                          name="map-outline"
+                          size={22}
+                          color="#b0b0b0"
+                        />
+                      </View>
+                      <View>
+                        <Text style={styles.placeName}>{p.companyName}</Text>
+                        <Text style={styles.placeMeta}>Visita anterior</Text>
+                      </View>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color="#86868b"
+                        style={{ marginLeft: "auto" }}
+                      />
+                    </TouchableOpacity>
+                  ))}
+              </View>
             ) : (
               <View style={styles.emptyCard}>
                 <Ionicons name="map-outline" size={40} color="#86868b" />
@@ -249,8 +265,8 @@ export default function HikerHome({ onNavigate, onLogout }: HikerHomeProps) {
               <View style={{ marginLeft: 8 }}>
                 <Text style={styles.tipTitle}>Consejo de seguridad</Text>
                 <Text style={styles.tipText}>
-                  Recuerda escanear tu QR en cada
-                  punto de control para mantenerte visible y seguro.
+                  Recuerda escanear tu QR en cada punto de control para
+                  mantenerte visible y seguro.
                 </Text>
               </View>
             </View>
@@ -291,63 +307,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   content: { paddingHorizontal: 20, paddingTop: 20 },
-  card: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 20,
-  },
-  brazaletActive: { backgroundColor: "#FF7F1110", borderColor: "#FF7F1120" },
-  brazaletInactive: { backgroundColor: "#f5f5f7", borderColor: "#ddd" },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardTitle: { fontWeight: "600", color: "#1a1a1a" },
-  cardSubtitle: { color: "#86868b", fontSize: 13 },
-  badge: {
-    backgroundColor: "#2E8B5715",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  badgeText: { color: "#2E8B57", fontSize: 12, fontWeight: "500" },
-  statsRow: { flexDirection: "row", gap: 10 },
-  statBox: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 10,
-    alignItems: "flex-start",
-  },
-  statLabel: { fontSize: 11, color: "#86868b" },
-  statValue: { fontSize: 16, fontWeight: "600", color: "#1a1a1a" },
-  connectBtn: {
-    backgroundColor: "#FF7F11",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginTop: 10,
-    alignItems: "center",
-  },
-  connectBtnText: { color: "#fff", fontWeight: "600" },
-  unlinkedContainer: { alignItems: "center", paddingVertical: 16 },
-  unlinkedText: {
-    color: "#555",
-    textAlign: "center",
-    fontSize: 13,
-    marginTop: 8,
-    marginHorizontal: 10,
-  },
+
   sosCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -369,12 +329,64 @@ const styles = StyleSheet.create({
   },
   sosTitle: { fontWeight: "600", color: "#1a1a1a" },
   sosSubtitle: { fontSize: 13, color: "#86868b" },
+
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 10,
   },
   sectionTitle: { fontWeight: "600", color: "#1a1a1a", fontSize: 16 },
+
+  // Cards de lugares
+  placeCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e5e5ea",
+  },
+  placeHistoryCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+  },
+  placeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#E6F0FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  placeIconMuted: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#f5f5f7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  placeName: { fontWeight: "600", color: "#1a1a1a", fontSize: 15 },
+  placeMeta: { color: "#86868b", fontSize: 13, marginTop: 2 },
+
+  badgeActive: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "#2E8B5715",
+  },
+  badgeActiveText: { color: "#2E8B57", fontSize: 12, fontWeight: "500" },
+
   emptyCard: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -401,6 +413,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   exploreText: { color: "#2E8B57", fontWeight: "600" },
+
   tipCard: {
     flexDirection: "row",
     backgroundColor: "#2E8B5710",

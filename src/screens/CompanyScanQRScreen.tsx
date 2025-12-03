@@ -3,24 +3,24 @@
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import {
-    addDoc,
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    query,
-    serverTimestamp,
-    updateDoc,
-    where,
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
 } from "firebase/firestore";
 import React, { useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { auth, db } from "../Services/firebaseConfig";
 import { HikerService } from "../Services/HikerService";
@@ -29,11 +29,13 @@ interface CompanyScanQRScreenProps {
   onBack: () => void;
 }
 
-export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps) {
+export default function CompanyScanQRScreen({
+  onBack,
+}: CompanyScanQRScreenProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [loading, setLoading] = useState(false);
 
-  // 🔐 Flag para evitar lecturas múltiples del mismo QR
+  // Flag para evitar lecturas múltiples del mismo QR
   const isProcessing = useRef(false);
 
   // Extraer el qrValue tipo "HST-XXXXXX" del texto del QR
@@ -55,6 +57,7 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
       console.log("[SCAN] Ignorado porque ya se está procesando otro QR");
       return;
     }
+
     isProcessing.current = true;
     setLoading(true);
 
@@ -78,7 +81,7 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
         return;
       }
 
-      // Buscar hiker por qrValue en Firestore
+      // Buscar hiker por qrValue en Firestore (usando tu servicio)
       const hiker = await HikerService.getHikerByQrValue(qrValue);
       console.log("[SCAN] Hiker encontrado:", hiker);
 
@@ -90,7 +93,7 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
         return;
       }
 
-      // Evitar duplicados en activeHikers
+      // 🧷 Evitar duplicados en activeHikers
       const activeRef = collection(db, "companies", company.uid, "activeHikers");
       const q = query(
         activeRef,
@@ -108,7 +111,7 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
         return;
       }
 
-      // Guardar como activo dentro de la empresa
+      // 1️⃣ Guardar como activo dentro de la empresa
       const newDoc = await addDoc(activeRef, {
         hikerUid: hiker.uid,
         name: hiker.fullName,
@@ -119,7 +122,7 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
 
       console.log("[SCAN] Hiker agregado a activeHikers con id:", newDoc.id);
 
-      // 🔥 Registrar lugar en el documento del usuario (users/{uid}.places[])
+      // 2️⃣ Registrar/actualizar lugar en el documento del usuario (users/{uid}.places[])
       try {
         const companyRef = doc(db, "companies", company.uid);
         const companySnap = await getDoc(companyRef);
@@ -141,10 +144,10 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
 
           console.log("[SCAN] places actuales en usuario:", rawPlaces);
 
-          // ❌ NO usamos serverTimestamp() dentro del array (da error)
+          // ❗ NO usamos serverTimestamp() dentro del array
           const now = new Date();
 
-          // Buscar si ya existe ese parque para este hiker
+          // Buscar si ya existe este parque para este hiker
           const index = rawPlaces.findIndex(
             (p: any) => p.companyId === company.uid
           );
@@ -152,7 +155,7 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
           let updatedPlaces: any[];
 
           if (index >= 0) {
-            // ya existía este parque → solo actualizamos datos
+            // Ya existía este parque → solo actualizamos datos
             updatedPlaces = [...rawPlaces];
             updatedPlaces[index] = {
               ...updatedPlaces[index],
@@ -160,7 +163,7 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
               lastCheckInAt: now,
             };
           } else {
-            // nuevo parque para este hiker
+            // Nuevo parque para este hiker
             updatedPlaces = [
               ...rawPlaces,
               {
@@ -177,7 +180,12 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
             updatedPlaces
           );
 
-          await updateDoc(userRef, { places: updatedPlaces });
+          await updateDoc(userRef, {
+            places: updatedPlaces,
+            // opcional: timestamp global de último update (este SÍ puede ser serverTimestamp)
+            lastPlaceUpdateAt: serverTimestamp(),
+          });
+
           console.log("[SCAN] places actualizados en usuario OK");
         } else {
           console.log("[SCAN] user doc no existe para hiker:", hiker.uid);
@@ -223,6 +231,7 @@ export default function CompanyScanQRScreen({ onBack }: CompanyScanQRScreenProps
         <Text style={styles.permissionText}>
           Necesitamos acceso a la cámara para escanear códigos QR.
         </Text>
+
         <TouchableOpacity
           style={styles.permissionBtn}
           onPress={requestPermission}
